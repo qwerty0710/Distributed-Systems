@@ -1,1 +1,1 @@
-# Distributer-Systems
+# Distributed-Systems
