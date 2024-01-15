@@ -8,6 +8,7 @@ class Consistent_Hashing:
         for server in init_servers:
             for i in range(virtual_servers):
                 self.ring[self.server_hash(server, i)] = {"server_id": server, "type": "server"}
+                self.servers[server+'_'+str(i)]=self.server_hash(server, i)
 
     def get_req_slot(self, req_id, client_id):
         hash_slot = self.req_hash(req_id)
@@ -15,11 +16,13 @@ class Consistent_Hashing:
             hash_slot = hash_slot + 1
             hash_slot = hash_slot % 512
         iter = hash_slot
+        #linear probing
         while self.ring[iter]["type"] != "server":
             iter = iter + 1
+            iter = iter % 512
         self.ring[hash_slot] = {"client_id": client_id, "req_id": req_id, "type": "request", "server_slot": iter}
 
-        return {"slot_no": hash_slot, "server": self.ring[iter]}
+        return hash_slot
 
     def req_complete(self, req_id):
         for i in range(512):
@@ -40,6 +43,8 @@ class Consistent_Hashing:
                 break
             else:
                 non_deleted_server = server
+        int it =
+
 
     def server_down(self, server_id):
         pass
