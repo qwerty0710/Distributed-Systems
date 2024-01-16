@@ -60,16 +60,19 @@ def add_replicas():
             # assign the least unoccupied server id by
             server_id = get_smallest_unoccupied_server_id()
             server_replicas.add_server(server_id, hostnames[i])
+            servers.append({
+                "id": server_id,
+                "hostname": hostnames[i]
+            })
         else:
             server_id = get_smallest_unoccupied_server_id()
             # generate random server name
             server_name = "Randomserver" + str(server_id)
             server_replicas.add_server(server_id, server_name)
-        # add the server to the list of servers
-        servers.append({
-            "id": server_id,
-            "hostname": server_replicas.servers[str(server_id)]
-        })
+            servers.append({
+                "id": server_id,
+                "hostname": server_name
+            })
 
     response = {
         "message": {
