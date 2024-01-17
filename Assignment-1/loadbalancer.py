@@ -63,8 +63,6 @@ def add_replicas():
     request_data = request.get_json(force=True)
     num_new_replicas = request_data["n"]
     hostnames = request_data["hostnames"]
-    print(request_data)
-    print("hello")
     # Check if the length of the hostname list is less than or equal to the number of new replicas
     if len(hostnames) > num_new_replicas:
         response = {
@@ -79,7 +77,6 @@ def add_replicas():
         names.append(server_replicas.servers[key]["name"])
     for i in range(num_new_replicas):
         server_id = get_smallest_unoccupied_server_id()
-        print(server_id)
         if i < len(hostnames):
             name = hostnames[i]
             if name in names:
