@@ -5,6 +5,7 @@ import requests
 import asyncio
 from flask import Flask, request, jsonify
 from ConsistentHashing import Consistent_Hashing
+from flask_apscheduler import APScheduler
 
 app = Flask(__name__)
 
@@ -15,6 +16,7 @@ m = 512
 reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
 serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
 server_replicas = Consistent_Hashing(m, reqHash, serverHash)
+
 
 # List of all the servers
 # servers = server_replicas.servers
@@ -129,12 +131,36 @@ def remove_replicas():
 
 @app.route('/<path:path>', methods=['GET'])
 def get(path):
-    # get the hash slot of the request
-    hash_slot = server_replicas.get_req_slot(path)
-    # get the server id from the hash slot
-    server_id = server_replicas.ring[hash_slot]
-    # get the server hostname from the server id
-    server_hostname = server_replicas.servers[str(server_id)]
-    # get the response from the server
-    response = requests.get("http://" + server_hostname + "/" + path)
-    return response.text, response.status_code
+    if path == "home":
+        print("bsdk")
+    elif path == "heartbeat":
+        print("mc")
+    else:
+        errorr = {
+            "message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+            "status": "failure"
+        }
+        return jsonify(errorr), 400
+    return jsonify({}), 400
+
+
+@app.errorhandler(404)
+def own_404_page(error):
+    pageName = request.args.get('url')
+    errorr = {
+        "message": f"<Error> ’/’ endpoint does not exist in server replicas",
+        "status": "failure"
+    }
+    return jsonify(errorr), 400
+
+
+def test_job():
+    pass
+
+
+if __name__ == '__main__':
+    app.run('127.0.0.1', 5000)
+    scheduler = APScheduler()
+    scheduler.init_app(app)
+    scheduler.start()
+    scheduler.add_job(id='test-job', func=test_job, trigger='interval', seconds=1)
