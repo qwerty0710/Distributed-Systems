@@ -16,19 +16,30 @@ m = 512
 reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
 serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
 server_replicas = Consistent_Hashing(m, reqHash, serverHash)
+client_info = {}
 
 
-# List of all the servers
-# servers = server_replicas.servers
+def add_client(request, req_id):
+    global client_info
+    client_info[req_id] = request.remote_addr
 
 
 def get_smallest_unoccupied_server_id():
+    global server_replicas
     occupied_ids = server_replicas.servers.keys()
-    occupied_ids = sorted(occupied_ids)
+    occupied_ids = list(map(int, occupied_ids))
+    print(occupied_ids)
     smallest_id = 0
     while smallest_id in occupied_ids:
-        smallest_id += 1
+        smallest_id = smallest_id+1
     return smallest_id
+
+
+def generate_req_id():
+    id = 111111
+    while id in client_info.keys():
+        id = random.randint(100000, 999999)
+    return id
 
 
 @app.route('/rep', methods=['GET'])
@@ -49,10 +60,11 @@ def get_replicas():
 @app.route('/add', methods=['POST'])
 def add_replicas():
     global server_replicas
-    request_data = request.get_json()
+    request_data = request.get_json(force=True)
     num_new_replicas = request_data["n"]
     hostnames = request_data["hostnames"]
-
+    print(request_data)
+    print("hello")
     # Check if the length of the hostname list is less than or equal to the number of new replicas
     if len(hostnames) > num_new_replicas:
         response = {
@@ -66,19 +78,16 @@ def add_replicas():
     for key in server_replicas.servers.keys():
         names.append(server_replicas.servers[key]["name"])
     for i in range(num_new_replicas):
+        server_id = get_smallest_unoccupied_server_id()
+        print(server_id)
         if i < len(hostnames):
-            # assign the least unoccupied server id by
-            server_id = get_smallest_unoccupied_server_id()
             name = hostnames[i]
             if name in names:
                 name = "Randomserver" + str(server_id)
-            server_replicas.add_server(server_id, name)
         else:
-            server_id = get_smallest_unoccupied_server_id()
-            # generate random server name
-            server_name = "Randomserver" + str(server_id)
-            server_replicas.add_server(server_id, server_name)
-
+            name = "Randomserver" + str(server_id)
+        server_replicas.add_server(server_id, name)
+        names.append(name)
     response = {
         "message": {
             "N": len(server_replicas.servers),
@@ -86,13 +95,16 @@ def add_replicas():
         },
         "status": "successful"
     }
+    print(server_replicas.servers)
     return jsonify(response), 200
 
 
 @app.route('/rm', methods=['DELETE'])
 def remove_replicas():
     global server_replicas
-    request_data = request.get_json()
+    # req_id = generate_req_id()
+    # add_client(request, req_id)
+    request_data = request.get_json(force=True)
     num_replicas_to_remove = request_data["n"]
     # preferred hostnames to remove
     hostnames = request_data["hostnames"]
@@ -104,21 +116,20 @@ def remove_replicas():
         }
         return jsonify(response), 400
     names = []
-    for key in server_replicas.servers.keys():
-        names.append(server_replicas.servers[key]["name"])
     # remove servers one by one and if n>hostname list then remove random servers from the list of servers
     for i in range(num_replicas_to_remove):
         if i < len(hostnames):
             # remove the server from the list of servers
             for key in server_replicas.servers.keys():
                 if server_replicas.servers[key]["name"] == hostnames[i]:
-                    server_replicas.server_del(server_replicas.servers[key]["id"])
+                    server_replicas.server_del(key)
                     break
         else:
             # remove random server from the list of servers
-            server_key = random.choice(server_replicas.servers.keys())
-            server_replicas.server_del(server_replicas.servers[server_key])
-
+            server_key = random.choice(list(server_replicas.servers.keys()))
+            server_replicas.server_del(server_key)
+    for key in server_replicas.servers.keys():
+        names.append(server_replicas.servers[key]["name"])
     response = {
         "message": {
             "N": len(server_replicas.servers),
@@ -132,9 +143,9 @@ def remove_replicas():
 @app.route('/<path:path>', methods=['GET'])
 def get(path):
     if path == "home":
-        print("home triggered")
+        print("home invoked")
     elif path == "heartbeat":
-        print("heartbeat triggered")
+        print("heartbeat invoked")
     else:
         errorr = {
             "message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
