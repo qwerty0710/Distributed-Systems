@@ -32,8 +32,8 @@ class Consistent_Hashing:
 
     def server_del(self, server_id):
         # reallocate if server is deleted
-        for i in self.servers[server_id]:
-            self.ring[i] = -1
+        for i in self.servers[server_id]["slots"]:
+            self.ring[int(i)] = -1
         del self.servers[server_id]
 
     def server_down(self, server_id):
@@ -41,14 +41,13 @@ class Consistent_Hashing:
 
     def add_server(self, server_id, server_preferred_name):
         # add the server and reallocate
+        self.servers[str(server_id)] = {}
+        self.servers[str(server_id)]["slots"] = []
+        self.servers[str(server_id)]["name"] = server_preferred_name
         for i in range(self.k):
             hash_val = self.server_hash(server_id, i)
             # check if the slot is empty else find the next empty slot using linear probing
             while self.ring[hash_val] != -1:
                 hash_val = (hash_val + 1) % self.slots
             self.ring[hash_val] = server_id
-            self.servers[str(server_id)]["name"] = server_preferred_name
-            self.servers[str(server_id)]["slots"].push(hash_val)
-
-
-obj = Consistent_Hashing(512, lambda i: (i ** 2 + 2 * i + 17) % 512, lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % 512)
+            self.servers[str(server_id)]["slots"].append(hash_val)
