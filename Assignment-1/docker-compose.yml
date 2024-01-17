@@ -1,0 +1,14 @@
+version: '3.7'
+
+services:
+  load_balancer:
+    image: load_balancer
+    ports:
+      - "5000:5000"
+    depends_on:
+      - web_server
+
+  web_server:
+    image: web_server
+    ports:
+      - "5000:5000"
