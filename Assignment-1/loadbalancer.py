@@ -132,9 +132,9 @@ def remove_replicas():
 @app.route('/<path:path>', methods=['GET'])
 def get(path):
     if path == "home":
-        print("bsdk")
+        print("home triggered")
     elif path == "heartbeat":
-        print("mc")
+        print("heartbeat triggered")
     else:
         errorr = {
             "message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
