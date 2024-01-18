@@ -168,6 +168,12 @@ def test_job():
 
 if __name__ == '__main__':
     app.run('127.0.0.1', 5000)
+    for server in Consistent_Hashing.servers:
+        res = os.popen(f'sudo docker run - -name {server["name"]} - -network net1 - -network - alias containerB - e VAR1 = v1 - e VAR2 = v2 - d ImageB: latest').read()
+        if len(res) == 0:
+            print("Unable to start containerB")
+        else:
+            print("successfully started containerB")
     scheduler = APScheduler()
     scheduler.init_app(app)
     scheduler.start()
