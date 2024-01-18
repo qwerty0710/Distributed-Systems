@@ -1,10 +1,6 @@
 FROM python:3.9
-
-WORKDIR /usr/src/app
-
-COPY requirements.txt .
+COPY ConsistentHashing.py /
+COPY loadbalancer.py /
+COPY requirements.txt /
 RUN pip install -r requirements.txt
-
-COPY . .
-
-CMD ["python", "server.py"]
+CMD ["python3","loadbalancer.py"]
