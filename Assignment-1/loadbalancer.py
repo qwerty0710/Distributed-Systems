@@ -28,7 +28,6 @@ def get_smallest_unoccupied_server_id():
     global server_replicas
     occupied_ids = server_replicas.servers.keys()
     occupied_ids = list(map(int, occupied_ids))
-    print(occupied_ids)
     smallest_id = 0
     while smallest_id in occupied_ids:
         smallest_id = smallest_id+1
@@ -60,6 +59,13 @@ def get_replicas():
 @app.route('/add', methods=['POST'])
 def add_replicas():
     global server_replicas
+
+    req_id = generate_req_id()
+    # map the request id to the server in the consistent hashing ring using the request hash function
+    server_id = server_replicas.ring[server_replicas.get_req_slot(req_id)]
+    print("Request served by server " + str(server_id))
+
+
     request_data = request.get_json(force=True)
     num_new_replicas = request_data["n"]
     hostnames = request_data["hostnames"]
@@ -167,8 +173,9 @@ def test_job():
 
 
 if __name__ == '__main__':
-    app.run('127.0.0.1', 5000)
+    app.run('0.0.0.0', 5000)
     scheduler = APScheduler()
     scheduler.init_app(app)
     scheduler.start()
     scheduler.add_job(id='test-job', func=test_job, trigger='interval', seconds=1)
+
