@@ -22,6 +22,8 @@ async def send_request_add(url):
         }
         async with session.post(url, data=json.dumps(payload)) as response:
             return await response.json(content_type="application/json")
+
+
 async def main():
     tasks = []
     '''
@@ -34,10 +36,11 @@ async def main():
     results = await asyncio.gather(*tasks)
     print(results)
     task = asyncio.create_task(send_request_rm("http://localhost:5000/rm"))
-    tasks=[]
+    tasks = []
     tasks.append(task)
     results = await asyncio.gather(task)
     print(results)
+
 
 if __name__ == '__main__':
     asyncio.run(main())

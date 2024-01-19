@@ -11,6 +11,6 @@ sudo docker build -t lb .
 
 # Run the following command to start the load balancer container
 ```bash
-sudo docker run -ip 5000:5000 -d lb
+sudo docker run -ip 5000:5000 -t lb
 ```
 

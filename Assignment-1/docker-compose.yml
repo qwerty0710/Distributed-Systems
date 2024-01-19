@@ -1,14 +1,64 @@
-version: '3.9'
-
+version: "3.9"
 services:
-  load_balancer:
-    image: load_balancer
+  lb:
+    build: ./Dockerfile # Path to the Dockerfile
+    image: lb
+    container_name: lb
     ports:
-      - "5000:5000"
-    depends_on:
-      - web_server
+      - "5000:5000" # Exposing port to host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+# This share host’s the docker daemon with the container. Now, the container can spawn other containers just like host
+    privileged: true # This should be true to share the docker daemon
 
-  web_server:
-    image: web_server
+    networks:
+      net1: # Need to define net1 in the compose file
+        aliases:
+            - lb # Usually same as containername
+  server0:
+    build: ./Dockerfile_server # Path to the Dockerfile
+    image: server
+    container_name: server0
     ports:
-      - "5000:5000"
+      - "5001:5000" # Exposing port to host
+    networks:
+      net1: # Need to define net1 in the compose file
+        aliases:
+            - server0 # Usually same as containername
+    depends_on:
+      - lb
+    environment:
+      SERVER_ID: 0
+  server1:
+    # build: ./Dockerfile_server # Path to the Dockerfile
+    image: server
+    container_name: server1
+    ports:
+      - "5002:5000" # Exposing port to host
+    networks:
+      net1: # Need to define net1 in the compose file
+        aliases:
+          - server1 # Usually same as containername
+    depends_on:
+      - server0
+      - lb
+    environment:
+      SERVER_ID: 1
+  server2:
+    # build: ./Dockerfile_server # Path to the Dockerfile
+    image: server
+    container_name: server2
+    ports:
+      - "5003:5000" # Exposing port to host
+    networks:
+      net1: # Need to define net1 in the compose file
+        aliases:
+          - server2 # Usually same as containername
+    depends_on:
+      - server0
+      - lb
+    environment:
+      SERVER_ID: 2
+networks:
+  net1:
+    name: net1

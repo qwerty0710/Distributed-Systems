@@ -30,7 +30,7 @@ def get_smallest_unoccupied_server_id():
     occupied_ids = list(map(int, occupied_ids))
     smallest_id = 0
     while smallest_id in occupied_ids:
-        smallest_id = smallest_id+1
+        smallest_id = smallest_id + 1
     return smallest_id
 
 
@@ -62,9 +62,6 @@ def add_replicas():
 
     req_id = generate_req_id()
     # map the request id to the server in the consistent hashing ring using the request hash function
-    server_id = server_replicas.ring[server_replicas.get_req_slot(req_id)]
-    print("Request served by server " + str(server_id))
-
 
     request_data = request.get_json(force=True)
     num_new_replicas = request_data["n"]
@@ -86,11 +83,13 @@ def add_replicas():
         if i < len(hostnames):
             name = hostnames[i]
             if name in names:
-                name = "Randomserver" + str(server_id)
+                name = "randomserver" + str(server_id)
         else:
-            name = "Randomserver" + str(server_id)
+            name = "randomserver" + str(server_id)
         server_replicas.add_server(server_id, name)
         names.append(name)
+        # spawn new server
+
     response = {
         "message": {
             "N": len(server_replicas.servers),
@@ -145,10 +144,20 @@ def remove_replicas():
 
 @app.route('/<path:path>', methods=['GET'])
 def get(path):
+    req_id = generate_req_id()
+    req_slot = reqHash(req_id)
+    server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
+    # print("Request served by server " + str(server_id))
+    client_ip = request.remote_addr
+    client_port = request.environ.get('REMOTE_PORT')
+    payload = {"ip": client_ip, "port": client_port}
+    server_port = 5001 + server_id
+    name = server_replicas.servers[server_id]["name"]
     if path == "home":
-        print("home invoked")
-    elif path == "heartbeat":
-        print("heartbeat invoked")
+        res = requests.get(f"http://{name}:{server_port}/home", json=payload)
+        if res.status_code == 200:
+            # do stats
+            pass
     else:
         errorr = {
             "message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
@@ -168,8 +177,11 @@ def own_404_page(error):
     return jsonify(errorr), 400
 
 
-def test_job():
-    pass
+# def test_job():
+#     for key in server_replicas.servers.keys():
+#         #res = requests.get(f"http://{name}:{server_port}/heartbeat", json=payload)
+#         #if res.status_code == 200
+#             pass
 
 
 if __name__ == '__main__':
@@ -178,4 +190,3 @@ if __name__ == '__main__':
     scheduler.init_app(app)
     scheduler.start()
     scheduler.add_job(id='test-job', func=test_job, trigger='interval', seconds=1)
-
