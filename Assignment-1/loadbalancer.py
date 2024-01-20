@@ -1,6 +1,8 @@
 import os
 import json
 import random
+import time
+
 import requests
 import asyncio
 from flask import Flask, request, jsonify
@@ -35,9 +37,8 @@ def get_smallest_unoccupied_server_id():
 
 
 def generate_req_id():
-    id = 111111
-    while id in client_info.keys():
-        id = random.randint(100000, 999999)
+    random.seed(time.time())
+    id = random.randint(100000, 999999)
     return id
 
 
@@ -89,7 +90,15 @@ def add_replicas():
         server_replicas.add_server(server_id, name)
         names.append(name)
         # spawn new server
-
+        res = os.popen(f"sudo docker run --name {name}"
+                       f"--network net1 "
+                       f"--network-alias {name}"
+                       f"-e SERVER_ID={server_id}"
+                       f"-d server").read()
+        if len(res) == 0:
+            print(f"Unable to start server with server id: {server_id}")
+        else:
+            print(f"Successfully started server with server id: {server_id}")
     response = {
         "message": {
             "N": len(server_replicas.servers),
@@ -120,16 +129,19 @@ def remove_replicas():
     names = []
     # remove servers one by one and if n>hostname list then remove random servers from the list of servers
     for i in range(num_replicas_to_remove):
+        del_key = ""
         if i < len(hostnames):
             # remove the server from the list of servers
             for key in server_replicas.servers.keys():
                 if server_replicas.servers[key]["name"] == hostnames[i]:
-                    server_replicas.server_del(key)
+                    del_key = key
                     break
         else:
             # remove random server from the list of servers
             server_key = random.choice(list(server_replicas.servers.keys()))
-            server_replicas.server_del(server_key)
+            del_key = server_key
+        os.system(f"sudo docker stop {server_replicas.servers[del_key].name} && sudo docker rm {server_replicas.servers[del_key].name}")
+        server_replicas.server_del(del_key)
     for key in server_replicas.servers.keys():
         names.append(server_replicas.servers[key]["name"])
     response = {
@@ -147,15 +159,10 @@ def get(path):
     req_id = generate_req_id()
     req_slot = reqHash(req_id)
     server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
-    # print("Request served by server " + str(server_id))
-    # client_ip = request.remote_addr
-    # client_port = request.environ.get('REMOTE_PORT')
-    # payload = {"ip": client_ip, "port": client_port}
-    server_port = 5001 + server_id
-    server_ip = "172.18.0."+str(server_id+3)
+    server_ip = "172.18.0." + str(server_id + 3)
+    # server_ip = "172.18.0.4"
     if path == "home":
         res = requests.get(f"http://{server_ip}:5000/home")
-        print("helloooooooo")
         return jsonify(res.json()), 200
     else:
         errorr = {
@@ -175,11 +182,29 @@ def own_404_page(error):
     return jsonify(errorr), 400
 
 
-# def test_job():
-#     for key in server_replicas.servers.keys():
-#         #res = requests.get(f"http://{name}:{server_port}/heartbeat", json=payload)
-#         #if res.status_code == 200
-#             pass
+def test_job():
+    for key in server_replicas.servers.keys():
+        server_id = int(key)
+        ip = "172.18.0." + str(server_id + 3)
+        tries = 0
+        while True:
+            try:
+                res = requests.get(f"http://{ip}:5000/heartbeat", timeout=0.01)
+            except requests.exceptions.Timeout:
+                tries = tries + 1
+                if tries == 3:
+                    res = os.popen(f"sudo docker run --name {server_replicas.servers[key].name}"
+                                   f"--network net1 "
+                                   f"--network-alias {server_replicas.servers[key].name}"
+                                   f"-e SERVER_ID={server_id}"
+                                   f"-d server").read()
+                    if len(res) == 0:
+                        print(f"Unable to start server with server id: {server_id}")
+                    else:
+                        print(f"Successfully started server with server id: {server_id}")
+                    break
+            finally:
+                break
 
 
 if __name__ == '__main__':
@@ -187,4 +212,4 @@ if __name__ == '__main__':
     scheduler = APScheduler()
     scheduler.init_app(app)
     scheduler.start()
-    scheduler.add_job(id='test-job', func=test_job, trigger='interval', seconds=1)
+    scheduler.add_job(id='test-job', func=test_job, trigger='interval', seconds=3)

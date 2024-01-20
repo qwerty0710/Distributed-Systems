@@ -1,4 +1,5 @@
 import math
+import random
 
 
 class Consistent_Hashing:
@@ -15,13 +16,16 @@ class Consistent_Hashing:
             self.servers[str(server)]["slots"] = []
             self.servers[str(server)]["name"] = f"server{server}"
             for i in range(self.k):
-                hash_val = self.server_hash(server, i)
+                random.seed(server)
+                random_id = random.randint(100000,999999)
+                hash_val = self.server_hash(random_id, i)
                 add = 2
                 while self.ring[hash_val] != -1:
                     hash_val = (hash_val + add**2) % self.slots
                     add = add + 1
                 self.ring[hash_val] = server
                 self.servers[str(server)]["slots"].append(hash_val)
+        print(self.servers)
 
     def get_req_slot(self, req_id):
         hash_slot = self.req_hash(req_id)
@@ -45,7 +49,9 @@ class Consistent_Hashing:
         self.servers[str(server_id)]["slots"] = []
         self.servers[str(server_id)]["name"] = server_preferred_name
         for i in range(self.k):
-            hash_val = self.server_hash(server_id, i)
+            random.seed(server_id)
+            random_id = random.randint(100000, 999999)
+            hash_val = self.server_hash(random_id, i)
             # check if the slot is empty else find the next empty slot using linear probing
             while self.ring[hash_val] != -1:
                 hash_val = (hash_val + 1) % self.slots
