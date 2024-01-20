@@ -1,10 +1,11 @@
-all: build run
-
 build:
-	docker-compose build
+	docker compose build
 
-run:
-	docker-compose up
+run lb:
+	docker compose up
+
+run server:
+	docker compose server0 server1 server2
 
 down:
-	docker-compose down
+	docker compose down

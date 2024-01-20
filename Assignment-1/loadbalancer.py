@@ -159,10 +159,9 @@ def get(path):
     req_id = generate_req_id()
     req_slot = reqHash(req_id)
     server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
-    server_ip = "172.18.0." + str(server_id + 3)
-    # server_ip = "172.18.0.4"
+    server_name = server_replicas.servers[str(server_id)]["name"]
     if path == "home":
-        res = requests.get(f"http://{server_ip}:5000/home")
+        res = requests.get(f"http://{server_name}:5000/home")
         return jsonify(res.json()), 200
     else:
         errorr = {
@@ -185,17 +184,17 @@ def own_404_page(error):
 def test_job():
     for key in server_replicas.servers.keys():
         server_id = int(key)
-        ip = "172.18.0." + str(server_id + 3)
+        server_name = server_replicas.servers[key]["name"]
         tries = 0
         while True:
             try:
-                res = requests.get(f"http://{ip}:5000/heartbeat", timeout=0.01)
+                res = requests.get(f"http://{server_name}:5000/heartbeat", timeout=0.01)
             except requests.exceptions.Timeout:
                 tries = tries + 1
                 if tries == 3:
-                    res = os.popen(f"sudo docker run --name {server_replicas.servers[key].name}"
+                    res = os.popen(f"sudo docker run --name {server_replicas.servers[key]['name']}"
                                    f"--network net1 "
-                                   f"--network-alias {server_replicas.servers[key].name}"
+                                   f"--network-alias {server_replicas.servers[key]['name']}"
                                    f"-e SERVER_ID={server_id}"
                                    f"-d server").read()
                     if len(res) == 0:
@@ -208,8 +207,8 @@ def test_job():
 
 
 if __name__ == '__main__':
-    app.run('0.0.0.0', 5000)
     scheduler = APScheduler()
     scheduler.init_app(app)
     scheduler.start()
     scheduler.add_job(id='test-job', func=test_job, trigger='interval', seconds=3)
+    app.run('0.0.0.0', 5000)
