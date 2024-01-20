@@ -19,6 +19,13 @@ reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
 serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
 server_replicas = Consistent_Hashing(m, reqHash, serverHash)
 client_info = {}
+os.popen("sudo su")
+res = os.popen(f"sudo -u root docker run"
+               f" --name server0 "
+               f"--network net1 "
+               f"--network-alias server0 "
+               f"-e SERVER_ID=0 "
+               f"-d server").read()
 
 
 def add_client(request, req_id):
@@ -140,7 +147,8 @@ def remove_replicas():
             # remove random server from the list of servers
             server_key = random.choice(list(server_replicas.servers.keys()))
             del_key = server_key
-        os.system(f"sudo docker stop {server_replicas.servers[del_key].name} && sudo docker rm {server_replicas.servers[del_key].name}")
+        os.system(
+            f"sudo docker stop {server_replicas.servers[del_key].name} && sudo docker rm {server_replicas.servers[del_key].name}")
         server_replicas.server_del(del_key)
     for key in server_replicas.servers.keys():
         names.append(server_replicas.servers[key]["name"])
@@ -192,7 +200,7 @@ def test_job():
             except requests.exceptions.Timeout:
                 tries = tries + 1
                 if tries == 3:
-                    res = os.popen(f"sudo docker run --name {server_replicas.servers[key]['name']}"
+                    res = os.popen(f"sudo -u root docker run --name {server_replicas.servers[key]['name']}"
                                    f"--network net1 "
                                    f"--network-alias {server_replicas.servers[key]['name']}"
                                    f"-e SERVER_ID={server_id}"

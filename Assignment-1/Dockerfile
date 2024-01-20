@@ -3,6 +3,8 @@ FROM docker:dind
 COPY loadbalancer.py /
 COPY requirements.txt /
 COPY ConsistentHashing.py /
+RUN apk add --no-cache su-exec
+RUN set -ex && apk --no-cache add sudo
 ENV PYTHONUNBUFFERED=1
 RUN apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python
 RUN apk add --update --no-cache py3-pip
