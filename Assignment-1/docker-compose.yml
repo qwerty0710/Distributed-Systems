@@ -59,6 +59,6 @@ services:
       - lb
     environment:
       SERVER_ID: 2
-networks:
-  net1:
-    name: net1
+#networks:
+#  net1:
+#    name: net1

@@ -148,23 +148,21 @@ def get(path):
     req_slot = reqHash(req_id)
     server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
     # print("Request served by server " + str(server_id))
-    client_ip = request.remote_addr
-    client_port = request.environ.get('REMOTE_PORT')
-    payload = {"ip": client_ip, "port": client_port}
+    # client_ip = request.remote_addr
+    # client_port = request.environ.get('REMOTE_PORT')
+    # payload = {"ip": client_ip, "port": client_port}
     server_port = 5001 + server_id
-    name = server_replicas.servers[server_id]["name"]
+    server_ip = "172.18.0."+str(server_id+3)
     if path == "home":
-        res = requests.get(f"http://{name}:{server_port}/home", json=payload)
-        if res.status_code == 200:
-            # do stats
-            pass
+        res = requests.get(f"http://{server_ip}:5000/home")
+        print("helloooooooo")
+        return jsonify(res.json()), 200
     else:
         errorr = {
             "message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
             "status": "failure"
         }
         return jsonify(errorr), 400
-    return jsonify({}), 400
 
 
 @app.errorhandler(404)

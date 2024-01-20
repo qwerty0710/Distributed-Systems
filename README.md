@@ -8,9 +8,16 @@ Following are some of the observations for the load balancer. <br />
 ```bash
 sudo docker build -t lb .
 ```
-
 # Run the following command to start the load balancer container
 ```bash
-sudo docker run -ip 5000:5000 -t lb
+sudo docker run --rm --name lb --network net1 --ip=172.18.0.2 --network-alias lb -p 5000:5000 lb
+```
+# Run the following command to build the docker image of server
+```bash
+sudo docker build -t server -f "./Dockerfile_server" .
+```
+# Run the following command to start the server container
+```bash
+sudo docker run --rm --name server0 --network net1 --ip=172.18.0.3  -p 5001:5000 --network-alias server0 -e SERVER_ID=0 server
 ```
 
