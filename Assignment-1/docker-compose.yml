@@ -17,7 +17,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 # This share host’s the docker daemon with the container. Now, the container can spawn other containers just like host
     privileged: true # This should be true to share the docker daemon
-
+    environment:
+      m: 512
     networks:
       net1: {}
 

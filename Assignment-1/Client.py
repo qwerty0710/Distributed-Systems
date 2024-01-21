@@ -39,16 +39,17 @@ async def main():
         task = asyncio.create_task(send_request("http://localhost:5000/home"))
         tasks.append(task)
     '''
-    task = asyncio.create_task(send_request_home("http://localhost:5000/home"))
+    # task = asyncio.create_task(send_request_home("http://localhost:5000/home"))
+    # tasks.append(task)
+    task = asyncio.create_task(send_request_add("http://localhost:5000/add"))
     tasks.append(task)
-    # await asyncio.open_connection("localhost",5000)
     results = await asyncio.gather(*tasks)
     print(results)
-    # task = asyncio.create_task(send_request_rm("http://localhost:5000/rm"))
-    # tasks = []
-    # tasks.append(task)
-    # results = await asyncio.gather(task)
-    # print(results)
+    task = asyncio.create_task(send_request_rm("http://localhost:5000/rm"))
+    tasks = []
+    tasks.append(task)
+    results = await asyncio.gather(task)
+    print(results)
 
 
 if __name__ == '__main__':
