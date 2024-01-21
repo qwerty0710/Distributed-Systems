@@ -4,20 +4,16 @@ Following are some of the observations for the load balancer. <br />
 # A-2 : increment N from 2 to 6 and launch 10000 requests on each such increment. Report the average load of the servers at each run in a line chart. Explain your observations in the graph and your view on the scalability of the load balancer implementation.
 # A-3 : Test all endpoints of the load balancer and show that in case of server failure, the load balancer spawns a new instance quickly to handle the load.
 
-# Run the following command to build the docker image of load balancer
+# Run the following command to build the docker image of load balancer and server
 ```bash
-sudo docker build -t lb .
+sudo make build
 ```
 # Run the following command to start the load balancer container
 ```bash
-sudo docker run --rm --name lb --network net1 --ip=172.18.0.2 --network-alias lb -p 5000:5000 lb
+sudo make lb
 ```
-# Run the following command to build the docker image of server
+# Run the following command to start the 3 initial server containers
 ```bash
-sudo docker build -t server -f "./Dockerfile_server" .
-```
-# Run the following command to start the server container
-```bash
-sudo docker run --rm --name server0 --network net1 --ip=172.18.0.3  -p 5001:5000 --network-alias server0 -e SERVER_ID=0 server
+sudo make server
 ```
 
