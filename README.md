@@ -59,5 +59,10 @@ When N=6 the standard deviation is 505.61
 
 ![Alt Text](Assignment-1/TestCode/new-hash/graph.png)
 
+We tested all endpoints of the load balancer and confirmed that they are working as expected. We also tested the load balancer's ability to recover from server failure. We simulated a server failure by stopping one of the server containers. The load balancer was able to quickly spawn a new instance to replace the failed server container.
 
+**Observations:**
+
+* All endpoints of the load balancer are working as expected.
+* The load balancer is able to recover from server failure quickly.
 
