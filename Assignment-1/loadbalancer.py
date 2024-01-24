@@ -15,10 +15,10 @@ app = Flask(__name__)
 
 # Number of slots in the ring
 m = int(os.getenv("m"))
-#reqHash = lambda i: (i ** 2 + 53 * i + 97) % m
-reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
-#serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 7 + 73) % m
-serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
+reqHash = lambda i: (67 * i ** 3 + 3 * i ** 2 + 53 * i + 97) % m
+# reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
+serverHash = lambda i, j: (59 * i ** 2 + 73 + 29 * j ** 2 + j * 7 + 73) % m
+# serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
 
 server_replicas = Consistent_Hashing(m, reqHash, serverHash)
 client_info = {}
@@ -53,7 +53,7 @@ def spawn_new_server(server_id, name):
                    f"-d server").read()
     if len(cmd) == 0:
         print(f"Unable to start server with server id: {server_id}")
-        #server_replicas.server_del(server_id)
+        # server_replicas.server_del(server_id)
     else:
         print(f"Successfully started server with server id: {server_id}")
 
@@ -81,7 +81,7 @@ def check_heartbeat(server=None, server_id=None):
                                f"-d server").read()
                 if len(cmd) == 0:
                     print(f"Unable to start server with server id: {server_id}")
-                    #server_replicas.server_del(server_id)
+                    # server_replicas.server_del(server_id)
                 else:
                     print(f"Successfully started server with server id: {server_id}")
                     servers_alive.append(server_name)
@@ -103,7 +103,7 @@ def check_heartbeat(server=None, server_id=None):
                            f"-d server").read()
             if len(cmd) == 0:
                 print(f"Unable to start server with server id: {server_id}")
-                #server_replicas.server_del(server_id)
+                # server_replicas.server_del(server_id)
             else:
                 print(f"Successfully started server with server id: {server_id}")
                 servers_alive.append(server)

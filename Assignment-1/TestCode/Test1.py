@@ -1,4 +1,5 @@
 import asyncio
+import math
 import time
 import requests
 import matplotlib.pyplot as plt
@@ -22,8 +23,12 @@ async def task_A1():
         return await asyncio.gather(*tasks)
 
 
+server_counts = {}
+
+
 # Plotting function for A-1
-def plot_request_distribution(request_responses,server_count):
+def plot_request_distribution(request_responses, server_count):
+    global server_counts
     server_counts = {f"Server {i}": 0 for i in range(0, server_count)}
 
     for response in request_responses:
@@ -57,8 +62,14 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     timeb = time.time()
     # Run the A-1 task
-    server_count = 2
+    server_count = 6
     request_responses = loop.run_until_complete(task_A1())
-    print(time.time()-timeb)
+
+    # print(time.time()-timeb)
     # Plot the request distribution
-    plot_request_distribution(request_responses,server_count)
+    plot_request_distribution(request_responses, server_count)
+    std_dvn = 0
+    for key in server_counts.keys():
+        std_dvn += ((server_counts[key] - 10000 / server_count) ** 2)
+    std_dvn = math.sqrt(std_dvn / server_count)
+    print(std_dvn)

@@ -23,7 +23,7 @@ async def make_request(session, endpoint):
     raise RuntimeError("Failed to make request after multiple retries.")
 
 # Function to simulate stopping a server container (simulate failure)
-def simulate_server_failure():
+def simulate_server_failure(stopped_container_id):
     # You can use Docker SDK or other tools to stop a server container
     # For simplicity, let's assume you have a command to stop a container
     stopped_container_id = "6c70ca5951fd"

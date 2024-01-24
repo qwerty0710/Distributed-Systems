@@ -7,11 +7,12 @@ import requests
 async def send_request_rm(url):
     async with aiohttp.ClientSession() as session:
         payload = {
-            "n": 4,
-            "hostnames": ["server2","server3","server4","server5"]
+            "n": 1,
+            "hostnames": ["server2"]
         }
         async with session.delete(url, data=json.dumps(payload)) as response:
             return await response.json(content_type="application/json")
+
 
 async def send_request_home(url):
     async with aiohttp.ClientSession() as session:
@@ -21,6 +22,7 @@ async def send_request_home(url):
         # }
         async with session.get(url) as response:
             return await response.json(content_type="application/json")
+
 
 async def send_request_add(url):
     async with aiohttp.ClientSession() as session:
@@ -45,7 +47,7 @@ async def main():
     # tasks.append(task)
     # results = await asyncio.gather(*tasks)
     # print(results)
-    task = asyncio.create_task(send_request_rm("http://localhost:5000/rm"))
+    task = asyncio.create_task(send_request_add("http://localhost:5000/add"))
     tasks = []
     tasks.append(task)
     results = await asyncio.gather(task)
