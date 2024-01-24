@@ -37,7 +37,6 @@ def get_smallest_unoccupied_server_id():
 
 
 def generate_req_id():
-    random.seed(time.time())
     id = random.randint(100000, 999999)
     return id
 

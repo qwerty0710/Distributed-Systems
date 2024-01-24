@@ -17,7 +17,6 @@ class Consistent_Hashing:
             self.servers[str(server)]["slots"] = []
             self.servers[str(server)]["name"] = f"server{server}"
             for i in range(self.k):
-                random.seed(server)
                 random_id = random.randint(100000,999999)
                 hash_val = self.server_hash(random_id, i)
                 add = 2
