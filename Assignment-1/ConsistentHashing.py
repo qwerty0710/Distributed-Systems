@@ -27,11 +27,9 @@ class Consistent_Hashing:
                 self.servers[str(server)]["slots"].append(hash_val)
         print(self.servers)
 
-    def get_req_slot(self, req_id, down_servers=None):
-        if down_servers is None:
-            down_servers = []
+    def get_req_slot(self, req_id):
         hash_slot = self.req_hash(req_id)
-        while self.ring[hash_slot] == -1 or int(self.ring[hash_slot]) in down_servers:
+        while self.ring[hash_slot] == -1:
             hash_slot = hash_slot + 1
             hash_slot = hash_slot % self.slots
         return hash_slot

@@ -229,8 +229,6 @@ def remove_replicas():
 @app.route('/<path:path>', methods=['GET'])
 def get(path):
     global server_replicas
-    req_id = generate_req_id()
-    req_slot = reqHash(req_id)
     req_slot = generate_req_id()
     server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
     server_name = server_replicas.servers[str(server_id)]["name"]
