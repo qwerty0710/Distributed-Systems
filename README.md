@@ -55,7 +55,7 @@ We tested all endpoints of the load balancer and confirmed that they are working
 ![Alt Text](Assignment-1/TestCode/A3_2.png)
 <br /><br />
 ## A-4 Finally, modify the hash functions H(i), Φ(i, j) and report the observations from (A-1) and (A-2)
-For N=3 with new hash function this was the load distribution on 3 servers 
+For N=3 with new hash function H(i) = (67 * i^3 + 3 * i^2 + 53 * i + 97) % m and Φ(i, j) = (59 * i^2 + 73 + 29 * j^2 + j * 7 + 73) % m this was the load distribution on 3 servers 
 <br/>
 <br/>
 ![Alt Text](Assignment-1/TestCode/new-hash/N3.png)
