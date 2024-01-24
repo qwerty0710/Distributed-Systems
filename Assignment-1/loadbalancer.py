@@ -5,7 +5,7 @@ import time
 import atexit
 import requests
 import asyncio
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for
 from ConsistentHashing import Consistent_Hashing
 from flask_apscheduler import APScheduler
 
@@ -53,7 +53,7 @@ def spawn_new_server(server_id, name):
                    f"-d server").read()
     if len(cmd) == 0:
         print(f"Unable to start server with server id: {server_id}")
-        server_replicas.server_del(server_id)
+        #server_replicas.server_del(server_id)
     else:
         print(f"Successfully started server with server id: {server_id}")
 
@@ -81,7 +81,7 @@ def check_heartbeat(server=None, server_id=None):
                                f"-d server").read()
                 if len(cmd) == 0:
                     print(f"Unable to start server with server id: {server_id}")
-                    server_replicas.server_del(server_id)
+                    #server_replicas.server_del(server_id)
                 else:
                     print(f"Successfully started server with server id: {server_id}")
                     servers_alive.append(server_name)
@@ -103,11 +103,10 @@ def check_heartbeat(server=None, server_id=None):
                            f"-d server").read()
             if len(cmd) == 0:
                 print(f"Unable to start server with server id: {server_id}")
-                server_replicas.server_del(server_id)
+                #server_replicas.server_del(server_id)
             else:
                 print(f"Successfully started server with server id: {server_id}")
                 servers_alive.append(server)
-
 
     return servers_alive
 
@@ -229,6 +228,9 @@ def remove_replicas():
 
 @app.route('/<path:path>', methods=['GET'])
 def get(path):
+    global server_replicas
+    req_id = generate_req_id()
+    req_slot = reqHash(req_id)
     req_slot = generate_req_id()
     server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
     server_name = server_replicas.servers[str(server_id)]["name"]
@@ -237,8 +239,11 @@ def get(path):
         res = None
         try:
             res = requests.get(f"http://{server_name}:5000/home", timeout=1)
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError or requests.exceptions.Timeout:
             spawn_new_server(server_id, server_name)
+            return redirect(request.url)
+            # print("hallelujah!!")
+
         return jsonify(res.json()), 200
     else:
         errorr = {

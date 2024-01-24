@@ -16,20 +16,22 @@ class Consistent_Hashing:
             self.servers[str(server)] = {}
             self.servers[str(server)]["slots"] = []
             self.servers[str(server)]["name"] = f"server{server}"
+            random_id = random.randint(0, self.slots - 1)
             for i in range(self.k):
-                random_id = random.randint(100000,999999)
                 hash_val = self.server_hash(random_id, i)
-                add = 2
+                add = 1
                 while self.ring[hash_val] != -1:
-                    hash_val = (hash_val + add**2) % self.slots
-                    add = add + 1
+                    hash_val = (hash_val + 1) % self.slots
+                    # add = add + 1
                 self.ring[hash_val] = server
                 self.servers[str(server)]["slots"].append(hash_val)
         print(self.servers)
 
-    def get_req_slot(self, req_id):
+    def get_req_slot(self, req_id, down_servers=None):
+        if down_servers is None:
+            down_servers = []
         hash_slot = self.req_hash(req_id)
-        while self.ring[hash_slot] == -1:
+        while self.ring[hash_slot] == -1 or int(self.ring[hash_slot]) in down_servers:
             hash_slot = hash_slot + 1
             hash_slot = hash_slot % self.slots
         return hash_slot
