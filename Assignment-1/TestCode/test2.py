@@ -10,7 +10,7 @@ load_balancer_url = "http://localhost:5000"
 # Function to make HTTP requests to the load balancer with a retry mechanism
 async def make_request(session, endpoint):
     url = f"{load_balancer_url}{endpoint}"
-    for _ in range(3):  # Retry up to 3 times
+    for _ in range(2):  # Retry up to 3 times
         try:
             async with session.get(url) as response:
                 return await response.json()
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         request_responses = loop.run_until_complete(task_A2(num_containers))
         average_load = calculate_average_load(request_responses)
         average_loads[f"N={num_containers}"] = list(average_load.values())
-
+        time.sleep(2)
     # Plot the average loads
     plot_average_loads(average_loads)
 
