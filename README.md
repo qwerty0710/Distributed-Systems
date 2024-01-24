@@ -1,5 +1,12 @@
 
-## Distributed-Systems Assignment 1
+# Distributed-Systems Assignment 1
+In this Assignment we created a load balancer which uses Consistent Hashing to route asynchronous requests from clients to servers. Initially there will be 3 servers running with the load balancer. There are various endpoints that can be accessed through client.
+<br/>
+A). ("/rep"): return the number of alive servers and their hostnames. <br/>
+B). ("/add"): adds new preferred/random servers to the network. <br/>
+C). ("/rm"): removes the preferred/random servers from the network. <br/>
+D). ("/home"): routes the client request to any server mapped using consistent hashing.
+
 ## Run the following command to build the docker image of load balancer and server
 ```bash
 sudo make build
@@ -13,7 +20,7 @@ sudo make lb
 sudo make server
 ```
 
-Following are some of the observations for the load balancer. <br />
+# Following are some of the observations for the load balancer. <br />
 ## A-1 : Launch 10000 async requests on N = 3 server containers and report the request count handled by each server instance in a bar chart. Explain your observations in the graph and your view on the performance. <br />
 ![Alt Text](Assignment-1/TestCode/N3.png?raw=true "Title")
 <br />

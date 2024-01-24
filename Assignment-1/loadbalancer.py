@@ -11,14 +11,12 @@ from flask_apscheduler import APScheduler
 
 app = Flask(__name__)
 
-# Consistent Hashing
-
 # Number of slots in the ring
 m = int(os.getenv("m"))
-reqHash = lambda i: (67 * i ** 3 + 3 * i ** 2 + 53 * i + 97) % m
-# reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
-serverHash = lambda i, j: (59 * i ** 2 + 73 + 29 * j ** 2 + j * 7 + 73) % m
-# serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
+#reqHash = lambda i: (67 * i ** 3 + 3 * i ** 2 + 53 * i + 97) % m
+reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
+#serverHash = lambda i, j: (59 * i ** 2 + 73 + 29 * j ** 2 + j * 7 + 73) % m
+serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
 
 server_replicas = Consistent_Hashing(m, reqHash, serverHash)
 client_info = {}
@@ -144,8 +142,6 @@ def add_replicas():
 
     # add servers one by one and if n>hostname list then add random servers by generating server id and hostnames
     names = []
-    # for key in server_replicas.servers.keys():
-    #     names.append(server_replicas.servers[key]["name"])
     names = check_heartbeat()
     for i in range(num_new_replicas):
         server_id = get_smallest_unoccupied_server_id()
@@ -183,8 +179,6 @@ def add_replicas():
 @app.route('/rm', methods=['DELETE'])
 def remove_replicas():
     global server_replicas
-    # req_id = generate_req_id()
-    # add_client(request, req_id)
     request_data = request.get_json(force=True)
     num_replicas_to_remove = request_data["n"]
     # preferred hostnames to remove
@@ -213,8 +207,6 @@ def remove_replicas():
         os.system(
             f"sudo docker stop {server_replicas.servers[del_key]['name']} ")
         server_replicas.server_del(del_key)
-    # for key in server_replicas.servers.keys():
-    #     names.append(server_replicas.servers[key]["name"])
     names = check_heartbeat()
     response = {
         "message": {

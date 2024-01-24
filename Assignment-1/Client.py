@@ -36,11 +36,6 @@ async def send_request_add(url):
 
 async def main():
     tasks = []
-    '''
-    for i in range(10000):
-        task = asyncio.create_task(send_request("http://localhost:5000/home"))
-        tasks.append(task)
-    '''
     # task = asyncio.create_task(send_request_home("http://localhost:5000/home"))
     # tasks.append(task)
     # task = asyncio.create_task(send_request_add("http://localhost:5000/add"))

@@ -8,9 +8,6 @@ app = Flask(__name__)
 
 @app.route('/home', methods=['GET'])
 def home():
-    # client_info = request.get_json(force=True)
-    # ip = client_info['ip']
-    # port = client_info['port']
     server_id = os.getenv('SERVER_ID', 'Unknown')
     response = {
         "message": f"Hello from Server: {server_id}",
