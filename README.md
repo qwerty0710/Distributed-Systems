@@ -24,5 +24,10 @@ As we can see from the above graph, the load balancer is able to distribute the 
 
 # A-3 : Test all endpoints of the load balancer and show that in case of server failure, the load balancer spawns a new instance quickly to handle the load.
 
+We tested all endpoints of the load balancer and confirmed that they are working as expected. We also tested the load balancer's ability to recover from server failure. We simulated a server failure by stopping one of the server containers. The load balancer was able to quickly spawn a new instance to replace the failed server container.
 
+**Observations:**
+
+* All endpoints of the load balancer are working as expected.
+* The load balancer is able to recover from server failure quickly.
 
