@@ -15,6 +15,7 @@ app = Flask(__name__)
 
 # Number of slots in the ring
 m = int(os.getenv("m"))
+#reqHash = lambda i: (i ** 2 + 53 * i + 97) % m
 reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
 #serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 7 + 73) % m
 serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
