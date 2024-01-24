@@ -37,8 +37,16 @@ for n = 6 standard deviation for the load is approximately 780.36
 The system will have more even distribution as we go on increasing the number of servers as number of requests handled by each server decreases. 
 This graph resembles an exponential decay graph this is the case because we are using Consistent Hashing to assign the servers. This is quite scalable as we can see the decrease is very fast which means it can get to near ideal case quickly using few servers
 ## A-3 : Test all endpoints of the load balancer and show that in case of server failure, the load balancer spawns a new instance quickly to handle the load.
-This can be tested after launching the requests and stopping a running server manually and the loadbalancer will spawn the server once any request is assigned to it based on Consistent Hashing as we are building a fault-tolerant system
+This can be tested after launching the requests and stopping a running server manually and the loadbalancer will spawn the server once any request is assigned to it based on Consistent Hashing as we are building a fault-tolerant system.
+We tested all endpoints of the load balancer and confirmed that they are working as expected. We also tested the load balancer's ability to recover from server failure. We simulated a server failure by stopping one of the server containers. The load balancer was able to quickly spawn a new instance to replace the failed server container.
 
+**Observations:**
+
+* All endpoints of the load balancer are working as expected.
+* The load balancer is able to recover from server failure quickly.
+![Alt Text](Assignment-1/TestCode/A3_1.png)
+![Alt Text](Assignment-1/TestCode/A3_2.png)
+<br /><br />
 ## A-4 Finally, modify the hash functions H(i), Φ(i, j) and report the observations from (A-1) and (A-2)
 For N=3 with new hash function this was the load distribution on 3 servers 
 <br/>
@@ -59,10 +67,5 @@ When N=6 the standard deviation is 505.61
 
 ![Alt Text](Assignment-1/TestCode/new-hash/graph.png)
 
-We tested all endpoints of the load balancer and confirmed that they are working as expected. We also tested the load balancer's ability to recover from server failure. We simulated a server failure by stopping one of the server containers. The load balancer was able to quickly spawn a new instance to replace the failed server container.
 
-**Observations:**
-
-* All endpoints of the load balancer are working as expected.
-* The load balancer is able to recover from server failure quickly.
 
