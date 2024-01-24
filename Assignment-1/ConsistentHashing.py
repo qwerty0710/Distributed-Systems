@@ -49,7 +49,6 @@ class Consistent_Hashing:
         self.servers[str(server_id)]["slots"] = []
         self.servers[str(server_id)]["name"] = server_preferred_name
         for i in range(self.k):
-            random.seed(server_id)
             random_id = random.randint(100000, 999999)
             hash_val = self.server_hash(random_id, i)
             # check if the slot is empty else find the next empty slot using linear probing

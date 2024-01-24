@@ -27,7 +27,7 @@ async def task_A2(num_containers):
 
 # Function to calculate average load
 def calculate_average_load(request_responses):
-    server_counts = {f"Server {i}": 0 for i in range(0, 7)}
+    server_counts = {f"Server {i}": 0 for i in range(0, 3)}
 
     for response in request_responses:
         try:
@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
     # Perform A-2 for N from 2 to 6
     average_loads = {}
-    for num_containers in range(0, 7):
+    for num_containers in range(2, 6):
         request_responses = loop.run_until_complete(task_A2(num_containers))
         average_load = calculate_average_load(request_responses)
         average_loads[f"N={num_containers}"] = list(average_load.values())

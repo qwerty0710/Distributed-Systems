@@ -16,7 +16,9 @@ app = Flask(__name__)
 # Number of slots in the ring
 m = int(os.getenv("m"))
 reqHash = lambda i: (i ** 2 + 2 * i + 17) % m
+#serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 7 + 73) % m
 serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % m
+
 server_replicas = Consistent_Hashing(m, reqHash, serverHash)
 client_info = {}
 
@@ -226,8 +228,7 @@ def remove_replicas():
 
 @app.route('/<path:path>', methods=['GET'])
 def get(path):
-    req_id = generate_req_id()
-    req_slot = reqHash(req_id)
+    req_slot = generate_req_id()
     server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
     server_name = server_replicas.servers[str(server_id)]["name"]
 

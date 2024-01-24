@@ -1,6 +1,5 @@
 import asyncio
 import time
-
 import requests
 import matplotlib.pyplot as plt
 import aiohttp
@@ -24,8 +23,8 @@ async def task_A1():
 
 
 # Plotting function for A-1
-def plot_request_distribution(request_responses):
-    server_counts = {f"Server {i}": 0 for i in range(0, 3)}
+def plot_request_distribution(request_responses,server_count):
+    server_counts = {f"Server {i}": 0 for i in range(0, server_count)}
 
     for response in request_responses:
         try:
@@ -40,6 +39,7 @@ def plot_request_distribution(request_responses):
     servers = list(server_counts.keys())
     request_counts = list(server_counts.values())
 
+    addlabels(servers, request_counts)
     plt.bar(servers, request_counts)
     plt.xlabel('Server Containers')
     plt.ylabel('Request Count')
@@ -47,12 +47,18 @@ def plot_request_distribution(request_responses):
     plt.show()
 
 
+def addlabels(x, y):
+    for i in range(len(x)):
+        plt.text(i, y[i], y[i], ha='center')
+
+
 # Run the A-1 task and plot the results
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     timeb = time.time()
     # Run the A-1 task
+    server_count = 2
     request_responses = loop.run_until_complete(task_A1())
     print(time.time()-timeb)
     # Plot the request distribution
-    plot_request_distribution(request_responses)
+    plot_request_distribution(request_responses,server_count)
