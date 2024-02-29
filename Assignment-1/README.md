@@ -22,7 +22,7 @@ sudo make server
 
 # Following are some of the observations for the load balancer. <br />
 ## A-1 : Launch 10000 async requests on N = 3 server containers and report the request count handled by each server instance in a bar chart. Explain your observations in the graph and your view on the performance. <br />
-![Alt Text](Assignment-1/TestCode/N3.png "Title")
+![Alt Text](TestCode/N3.png "Title")
 <br />
 <br />
 As we can see from the above graph, the load balancer is able to distribute the load among the 3 servers but it is not fully equally distributed as it depends on the hash function. But the servers were able to handle 10000 asynchronous requests. <br />
@@ -39,7 +39,7 @@ for n = 5 standard deviation for the load is approximately 842.83
 <br />
 for n = 6 standard deviation for the load is approximately 780.36
 
-![Alt Text](Assignment-1/TestCode/line-graph.png)
+![Alt Text](TestCode/line-graph.png)
 <br /><br />
 The system will have more even distribution as we go on increasing the number of servers as number of requests handled by each server decreases. 
 This graph resembles an exponential decay graph this is the case because we are using Consistent Hashing to assign the servers. This is quite scalable as we can see the decrease is very fast which means it can get to near ideal case quickly using few servers
@@ -51,14 +51,14 @@ We tested all endpoints of the load balancer and confirmed that they are working
 
 * All endpoints of the load balancer are working as expected.
 * The load balancer is able to recover from server failure quickly.
-![Alt Text](Assignment-1/TestCode/A3_1.png)
-![Alt Text](Assignment-1/TestCode/A3_2.png)
+![Alt Text](TestCode/A3_1.png)
+![Alt Text](TestCode/A3_2.png)
 <br /><br />
 ## A-4 Finally, modify the hash functions H(i), Φ(i, j) and report the observations from (A-1) and (A-2)
 For N=3 with new hash function H(i) = (67 * i^3 + 3 * i^2 + 53 * i + 97) % m and Φ(i, j) = (59 * i^2 + 73 + 29 * j^2 + j * 7 + 73) % m this was the load distribution on 3 servers 
 <br/>
 <br/>
-![Alt Text](Assignment-1/TestCode/new-hash/N3.png)
+![Alt Text](TestCode/new-hash/N3.png)
 <br/>
 <br/>
 When N=2 the standard deviation is 754.0
@@ -72,7 +72,7 @@ When N=5 the standard deviation is 545.84
 When N=6 the standard deviation is 505.61
 <br/>
 
-![Alt Text](Assignment-1/TestCode/new-hash/graph.png)
+![Alt Text](TestCode/new-hash/graph.png)
 
 
 
