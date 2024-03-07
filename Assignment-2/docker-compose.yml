@@ -1,0 +1,56 @@
+version: "3.9"
+
+networks:
+  net1:
+    name: net1
+
+services:
+  lb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lb
+    container_name: lb
+    ports:
+      - "5000:5000" # Exposing port to host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+# This share host’s the docker daemon with the container. Now, the container can spawn other containers just like host
+    privileged: true # This should be true to share the docker daemon
+    environment:
+      m: 512
+    networks:
+      net1: {}
+
+  server0:
+    build:
+      context: ./folder
+      dockerfile: Dockerfile # Path to the Dockerfile
+    image: server
+    container_name: server0
+    ports:
+      - "5001:5000" # Exposing port to host
+    networks:
+      net1: {}
+    environment:
+      SERVER_ID: 0
+  server1:
+    image: server
+    container_name: server1
+    ports:
+      - "5002:5000" # Exposing port to host
+    networks:
+      net1: { }
+    environment:
+      SERVER_ID: 1
+  server2:
+    image: server
+    container_name: server2
+    ports:
+      - "5003:5000" # Exposing port to host
+    networks:
+      net1: # Need to define net1 in the compose file
+        aliases:
+          - server2 # Usually same as containername
+    environment:
+      SERVER_ID: 2
