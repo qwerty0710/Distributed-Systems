@@ -21,36 +21,3 @@ services:
       m: 512
     networks:
       net1: {}
-
-  server0:
-    build:
-      context: ./folder
-      dockerfile: Dockerfile # Path to the Dockerfile
-    image: server
-    container_name: server0
-    ports:
-      - "5001:5000" # Exposing port to host
-    networks:
-      net1: {}
-    environment:
-      SERVER_ID: 0
-  server1:
-    image: server
-    container_name: server1
-    ports:
-      - "5002:5000" # Exposing port to host
-    networks:
-      net1: { }
-    environment:
-      SERVER_ID: 1
-  server2:
-    image: server
-    container_name: server2
-    ports:
-      - "5003:5000" # Exposing port to host
-    networks:
-      net1: # Need to define net1 in the compose file
-        aliases:
-          - server2 # Usually same as containername
-    environment:
-      SERVER_ID: 2

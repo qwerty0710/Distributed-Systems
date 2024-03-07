@@ -38,4 +38,4 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir -r requirement
 EXPOSE 5000
 
 # Run the application
-CMD ["python3", "loadbalancer.py"]
+CMD ["uvicorn", "loadbalancer:app", "--port", "5000", "--host", "0.0.0.0"]

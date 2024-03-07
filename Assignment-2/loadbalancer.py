@@ -6,11 +6,10 @@ from array import array
 
 import aiohttp
 from aiodocker import Docker
-import requests
+
 import uvicorn
-from fastapi import FastAPI, Body, HTTPException, status, Request
+from fastapi import FastAPI, Body, status, Request
 from fastapi.responses import RedirectResponse
-from docker
 from ConsistentHashing import Consistent_Hashing
 import mysql as sql
 import mysql.connector
@@ -25,25 +24,21 @@ app.reqHash = lambda i: (i ** 2 + 2 * i + 17) % app.m
 # serverHash = lambda i, j: (59 * i ** 2 + 73 + 29 * j ** 2 + j * 7 + 73) % m
 app.serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % app.m
 
-app.server_replicas = {}
+app.server_id_map = {}
 app.shard_consistent_hashing = {}
 app.client_info = {}
 app.db_config = {
-    "host": "127.0.0.1",
+    "host": "localhost",
     "user": "root",
     "password": "root",
-    "database": "metadata"
+    "port": "3306"
 }
 
 
-def add_client(request, req_id):
-    global client_info
-    client_info[req_id] = request.remote_addr
-
-
 def get_smallest_unoccupied_server_id():
-    global server_replicas
-    occupied_ids = server_replicas.servers.keys()
+    occupied_ids = []
+    for server_id in app.server_id_map:
+        occupied_ids.append(server_id)
     occupied_ids = list(map(int, occupied_ids))
     smallest_id = 0
     while smallest_id in occupied_ids:
@@ -51,13 +46,13 @@ def get_smallest_unoccupied_server_id():
     return smallest_id
 
 
-def generate_req_id():
-    id = random.randint(100000, 999999)
+async def generate_req_id():
+    id = random.randint(000000, 999999)
     return id
 
 
-async def spawn_new_server(servers):
-    async def spawn_server(docker, name, server_id):
+async def spawn_new_servers(servers):
+    async def spawn_server(docker: Docker, name: str, server_id: int):
         container = await docker.containers.create_or_replace({
             "name": name,
             "image": "server",
@@ -76,71 +71,32 @@ async def spawn_new_server(servers):
         await asyncio.gather(*tasks)
 
 
-def check_heartbeat(server=None, server_id=None):
-    global server_replicas
-    servers_alive = []
-    if server is None:
-        for key in server_replicas.servers.keys():
-            server_name = server_replicas.servers[key]["name"]
-            res = None
-            try:
-                res = requests.get(f"http://{server_name}:5000/heartbeat")
-                if res is not None:
-                    if res.status_code == 200:
-                        servers_alive.append(server_name)
-
-            except requests.exceptions.ConnectionError:
-                server_id = key
-                name = server_name
-                cmd = os.popen(f"sudo docker run --rm --name {name} "
-                               f"--network net1 "
-                               f"--network-alias {name} "
-                               f"-e SERVER_ID={server_id} "
-                               f"-d server").read()
-                if len(cmd) == 0:
-                    print(f"Unable to start server with server id: {server_id}")
-                    # server_replicas.server_del(server_id)
-                else:
-                    print(f"Successfully started server with server id: {server_id}")
-                    servers_alive.append(server_name)
+async def check_heartbeat():
+    pass
 
 
-    else:
-        res = None
-        try:
-            res = requests.get(f"http://{server}:5000/heartbeat")
-            if res is not None:
-                if res.status_code == 200:
-                    servers_alive.append(server)
-
-        except requests.exceptions.ConnectionError:
-            cmd = os.popen(f"sudo docker run --rm --name {server} "
-                           f"--network net1 "
-                           f"--network-alias {server} "
-                           f"-e SERVER_ID={server_id} "
-                           f"-d server").read()
-            if len(cmd) == 0:
-                print(f"Unable to start server with server id: {server_id}")
-                # server_replicas.server_del(server_id)
-            else:
-                print(f"Successfully started server with server id: {server_id}")
-                servers_alive.append(server)
-
-    return servers_alive
+async def make_request(server_name, payload, path):
+    async with aiohttp.ClientSession() as session:
+        async with session.post(f"http://{server_name}:5000/{path}", data=json.dumps(payload)) as response:
+            return await response.json(content_type="application/json")
 
 
-@app.post('/init')
-async def init(n: int = Body(...), schema: dict[str, array[str]] = Body(...), shards: list[dict] = Body(...),
+@app.post('/init', status_code=status.HTTP_200_OK)
+async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
                servers: dict = Body(...)):
+
     # get data from the request fastAPI
     shard_to_server = {}
-    for server in servers:
-        shard_to_server[server] = []
-        for shard in server:
-            server_id = get_smallest_unoccupied_server_id()
-            shard_to_server[shard].append(server_id)
+    shard_list = []
+    for i in range(len(shards)):
+        shard_to_server[shards[i]["Shard_id"]] = []
+    for server in servers.keys():
+        server_id = get_smallest_unoccupied_server_id()
+        for i in range(len(servers[server])):
+            # print(server_id)
+            shard_to_server[servers[server][i]].append(server_id)
     for shard in shard_to_server.keys():
-        app.shard_consistent_hashing[shard] = Consistent_Hashing(n, app.reqHash, app.serverHash, shard_to_server[shard])
+        app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, shard_to_server[shard])
     # create shardT and mapT in SQL
     curx = sql.connector.connect(**app.db_config)
     cursor = curx.cursor()
@@ -159,28 +115,24 @@ async def init(n: int = Body(...), schema: dict[str, array[str]] = Body(...), sh
     curx.commit()
     curx.close()
     # spawn the servers and initialize the shards
-    for server_name in servers.keys():
-        spawn_new_server(server_name[6:], server_name)
+
+    await spawn_new_servers(servers.keys())
 
     # hit the '/config' endpoint of the servers to initialize the shards using aiohttp
-    async def config_shards(server_name, payload):
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"http://{server_name}:5000/config", data=json.dumps(payload)) as response:
-                return await response.json(content_type="application/json")
 
-    for server_name in servers.keys():
-        payload = {"shards": servers[server_name], "schema": schema}
-        await config_shards(server_name, payload)
+    for sname in servers.keys():
+        payload = {"shards": servers[sname], "schema": schema}
+        await make_request(sname, payload, "config")
 
     response = {
         "message": "Configured database",
         "status": "success"
     }
-    return response, status.HTTP_200_OK
+    return response
 
 
 @app.get('/rep')
-def get_replicas():
+async def get_replicas():
     names = check_heartbeat()
     response = {
         "message": {
@@ -194,7 +146,7 @@ def get_replicas():
 
 @app.post('/add')
 async def add_replicas(n: int = Body(...), new_shards: list[dict] = Body(...),
-                       servers: dict[str, list[any]] = Body(...)):
+                       servers: dict = Body(...))->dict[str,str]:
     # map the request id to the server in the consistent hashing ring using the request hash function
 
     hostnames: array[str] = array("u", servers.keys())
@@ -219,10 +171,7 @@ async def add_replicas(n: int = Body(...), new_shards: list[dict] = Body(...),
             name = "randomserver" + str(server_id)
 
         # spawn new server
-
-
-        for server_name in servers.keys():
-
+        await spawn_new_servers(name)
         names.append(name)
     message = "Add "
     for name in names:
@@ -288,11 +237,9 @@ async def get(path, request: Request):
 
     if path == "home":
         res = None
-        try:
-            res = requests.get(f"http://{server_name}:5000/home", timeout=1)
-        except requests.exceptions.ConnectionError or requests.exceptions.Timeout:
-            spawn_new_server(server_id, server_name)
-            return RedirectResponse(request.url)
+        await make_request(server_name, {}, "home")
+        await asyncio.sleep(1)
+        return RedirectResponse(request.url)
             # print("hallelujah!!")
 
         return res, 200
