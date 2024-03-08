@@ -52,24 +52,35 @@ async def generate_req_id():
     return id
 
 
-async def spawn_new_servers(servers):
-    async def spawn_server(docker: Docker, name: str, server_id: int):
-        container = await docker.containers.create_or_replace(name=name,
-                                                              config={
-                                                                  "image": "server",
-                                                                  "networks": ["net1"],
-                                                                  "network_aliases": [name],
-                                                                  "environment": {"SERVER_ID": server_id},
-                                                                  "detach": True
-                                                              })
-        await container.start()
-
-    async with Docker() as docker:
-        tasks = []
-        for server_name in servers:
-            server_id = get_smallest_unoccupied_server_id()
-            tasks.append(spawn_server(docker, server_name, server_id))
-        await asyncio.gather(*tasks)
+async def spawn_new_servers(servers_id_name_map):
+    # async def spawn_server(docker: Docker, name: str, server_id: int):
+    #     container = await docker.containers.create_or_replace(name=name,
+    #                                                           config={
+    #                                                               "image": "server",
+    #                                                               "networks": ["net1"],
+    #                                                               "network_aliases": [name],
+    #                                                               "environment": {"SERVER_ID": server_id},
+    #                                                               "detach": True
+    #                                                           })
+    #     await container.start()
+    # async with Docker() as docker:
+    #     tasks = []
+    #     for server_name in servers:
+    #         server_id = get_smallest_unoccupied_server_id()
+    #         tasks.append(spawn_server(docker, server_name, server_id))
+    #     await asyncio.gather(*tasks)
+    # print("helloooooooooooo")
+    for server_id in servers_id_name_map.keys():
+        cmd = os.popen(f"sudo docker run --rm --name {servers_id_name_map[server_id]} "
+                       f"--network net1 "
+                       f"--network-alias {servers_id_name_map[server_id]} "
+                       f"-e SERVER_ID={int(server_id)} "
+                       f"-d server").read()
+        if len(cmd) == 0:
+            print(f"Unable to start server with server id: {server_id} with name {servers_id_name_map[server_id]}")
+            # server_replicas.server_del(server_id)
+        else:
+            print(f"Successfully started server with server id: {server_id} with name {servers_id_name_map[server_id]}")
 
 
 async def check_heartbeat():
@@ -77,8 +88,9 @@ async def check_heartbeat():
 
 
 async def make_request(server_name, payload, path):
-    async with aiohttp.ClientSession() as session:
-        async with session.post(f"http://{server_name}:5000/{path}", data=json.dumps(payload)) as response:
+    session_timeout = aiohttp.ClientTimeout(total=None, sock_connect=2, sock_read=2)
+    async with aiohttp.ClientSession(timeout=session_timeout) as session:
+        async with session.post(f"http://{server_name}:5000/{path}", data=json.dumps(payload), timeout=2) as response:
             return await response.json(content_type="application/json")
 
 
@@ -88,25 +100,28 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     # get data from the request fastAPI
     shard_to_server = {}
     shard_list = []
+    # allocating memory for shard to server mapping
     for i in range(len(shards)):
         shard_to_server[shards[i]["Shard_id"]] = []
+    # generating server id for each server and creating list of servers each shard is a part of
     for server in servers.keys():
         server_id = get_smallest_unoccupied_server_id()
-        app.server_id_name_map[server_id] = server
+        app.server_id_name_map[str(server_id)] = server
         for i in range(len(servers[server])):
             # print(server_id)
             shard_to_server[servers[server][i]].append(server_id)
+    # passing server names and ids in a dict to consistent hashing for each shard
     for shard in shard_to_server.keys():
-        server_name_id = []
+        server_config = []
         for server_id in shard_to_server[shard]:
-            server_name_id.append({"server_name": app.server_id_name_map[server_id], "server_id": server_id})
-        app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, server_name_id)
+            server_config.append({"server_name": app.server_id_name_map[str(server_id)], "server_id": server_id})
+        app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, server_config)
     for shard in shards:
         app.database_helper.add_shard(shard)
     for server in servers.keys():
         for shard in servers[server]:
             app.database_helper.add_server(shard, server)
-    await spawn_new_servers(servers.keys())
+    await spawn_new_servers(app.server_id_name_map)
 
     # hit the '/config' endpoint of the servers to initialize the shards using aiohttp
 
