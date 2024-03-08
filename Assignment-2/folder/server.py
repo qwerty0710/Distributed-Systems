@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Body, HTTPException, status
 from typing import Optional, List, Dict
 import uvicorn
-import mysql.connector as sql
+
 app = FastAPI()
 
 # Placeholder for shard data
@@ -9,8 +9,6 @@ shard_data: Dict[str, List] = {
     "sh1": [],
     "sh2": [],
 }
-
-sql.connect(host="localhost",user="root",password="abc")
 
 
 @app.post("/config")
