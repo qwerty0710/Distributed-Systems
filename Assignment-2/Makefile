@@ -5,13 +5,13 @@ run lb:
 	docker compose up lb
 
 run server:
-	docker compose up server0 server1 server2
+	docker compose up server
 
 down:
 	docker compose down
 
 clean:
-	docker ps -aq | xargs docker rm -f
+	sudo docker rmi -f $(sudo docker images -aq)
 
 rstop:
 	docker container prune -f
