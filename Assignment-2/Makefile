@@ -13,5 +13,8 @@ down:
 clean:
 	sudo docker rmi -f $(sudo docker images -aq)
 
-rstop:
+cstop:
+	sudo docker stop $(sudo docker ps -q)
+
+cclean:
 	docker container prune -f

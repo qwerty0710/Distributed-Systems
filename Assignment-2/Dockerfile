@@ -27,7 +27,5 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir -r requirement
 # Expose port for communication
 EXPOSE 5000
 
-# RUN mysql -u root -h 127.0.0.1 -p
-
 # Run the application
-CMD ["sudo", "uvicorn", "loadbalancer:app", "--port", "5000", "--host", "0.0.0.0"]
+CMD ["uvicorn", "loadbalancer:app", "--port", "5000", "--host", "0.0.0.0"]

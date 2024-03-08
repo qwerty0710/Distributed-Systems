@@ -88,11 +88,18 @@ async def check_heartbeat():
 
 
 async def make_request(server_name, payload, path):
-    session_timeout = aiohttp.ClientTimeout(total=None, sock_connect=2, sock_read=2)
-    async with aiohttp.ClientSession(timeout=session_timeout) as session:
-        async with session.post(f"http://{server_name}:5000/{path}", data=json.dumps(payload), timeout=2) as response:
-            return await response.json(content_type="application/json")
-
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"http://{server_name}:5000/{path}", data=json.dumps(payload), timeout=2) as response:
+                content = await response.read()
+                if response.status != 404:
+                    return response.json(content_type="application/json")
+                else:
+                    return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                            "status": "failure"}, 400
+    except Exception as e:
+        return {"message": f"<Error> {e}",
+                "status": "failure"}, 400
 
 @app.post('/init', status_code=status.HTTP_200_OK)
 async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
@@ -128,6 +135,8 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     for sname in servers.keys():
         payload = {"shards": servers[sname], "schema": schema}
         await make_request(sname, payload, "config")
+
+
 
     response = {
         "message": "Configured database",

@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Body, HTTPException, status
 from typing import Optional, List, Dict
 import uvicorn
@@ -10,6 +12,7 @@ shard_data: Dict[str, List] = {
     "sh2": [],
 }
 
+sid = os.getenv('SERVER_ID', 'Unknown')
 
 @app.post("/config")
 async def configure_shards(schema: str = Body(...), shards: List[str] = Body(...)):
@@ -18,10 +21,9 @@ async def configure_shards(schema: str = Body(...), shards: List[str] = Body(...
     for shard in shards:
         shard_data[shard] = []
     return {
-        "message": f"Server0:{', '.join(shards)} configured",
+        "message": f"Server{sid}:{', '.join(shards)} configured",
         "status": "success",
     }
-
 
 @app.get("/heartbeat")
 async def heartbeat(data:int = Body(...) ):
