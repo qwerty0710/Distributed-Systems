@@ -11,7 +11,7 @@ down:
 	docker compose down
 
 clean:
-	docker ps -aq | xargs docker rm -f
+	sudo docker rmi -f $(sudo docker images -aq)
 
 rstop:
 	docker container prune -f

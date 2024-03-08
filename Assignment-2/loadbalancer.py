@@ -11,8 +11,7 @@ import uvicorn
 from fastapi import FastAPI, Body, status, Request
 from fastapi.responses import RedirectResponse
 from ConsistentHashing import Consistent_Hashing
-import mysql as sql
-import mysql.connector
+import mysql.connector as sql
 
 app = FastAPI()
 
@@ -98,7 +97,7 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     for shard in shard_to_server.keys():
         app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, shard_to_server[shard])
     # create shardT and mapT in SQL
-    curx = sql.connector.connect(**app.db_config)
+    curx = sql.connect(host='localhost', user='root', password='root')
     cursor = curx.cursor()
     cursor.execute(f"CREATE DATABASE IF NOT EXISTS metadata")
     cursor.execute(f"USE metadata")
@@ -133,7 +132,7 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
 
 @app.get('/rep')
 async def get_replicas():
-    names = check_heartbeat()
+    names = await check_heartbeat()
     response = {
         "message": {
             "N": len(names),
