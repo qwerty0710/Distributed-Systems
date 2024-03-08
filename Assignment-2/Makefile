@@ -5,7 +5,7 @@ run lb:
 	docker compose up lb
 
 run server:
-	docker compose up server0 server1 server2
+	docker compose up server
 
 down:
 	docker compose down

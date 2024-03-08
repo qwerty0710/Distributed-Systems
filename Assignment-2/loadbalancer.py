@@ -6,6 +6,7 @@ from array import array
 
 import aiohttp
 from aiodocker import Docker
+import subprocess
 
 import uvicorn
 from fastapi import FastAPI, Body, status, Request
@@ -27,10 +28,10 @@ app.server_id_map = {}
 app.shard_consistent_hashing = {}
 app.client_info = {}
 app.db_config = {
-    "host": "localhost",
-    "user": "root",
-    "password": "root",
-    "port": "3306"
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'root',
+    'port': '3306'
 }
 
 
@@ -97,7 +98,7 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     for shard in shard_to_server.keys():
         app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, shard_to_server[shard])
     # create shardT and mapT in SQL
-    curx = sql.connect(host='localhost', user='root', password='root')
+    curx = sql.connect(**app.db_config)
     cursor = curx.cursor()
     cursor.execute(f"CREATE DATABASE IF NOT EXISTS metadata")
     cursor.execute(f"USE metadata")
@@ -251,4 +252,5 @@ async def get(path, request: Request):
 
 
 if __name__ == '__main__':
+    # Start MySQL server
     uvicorn.run('0.0.0.0', port=5000)  # Run the Flask app

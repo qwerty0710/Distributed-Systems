@@ -21,3 +21,9 @@ services:
       m: 512
     networks:
       net1: {}
+
+  server:
+    build:
+      context: ./folder
+      dockerfile: Dockerfile # Path to the Dockerfile
+    image: server
