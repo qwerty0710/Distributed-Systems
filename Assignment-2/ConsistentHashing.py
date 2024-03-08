@@ -6,16 +6,16 @@ import random
 class Consistent_Hashing:
     servers = {}
 
-    def __init__(self, m, req_hash, server_hash, server_id_list):
+    def __init__(self, m, req_hash, server_hash, server_list):
         self.ring = [-1] * m
         self.slots = m
         self.req_hash = req_hash
         self.server_hash = server_hash
         self.k = int(math.log2(m))
-        for server in server_id_list:
+        for server in server_list:
             self.servers[str(server)] = {}
             self.servers[str(server)]["slots"] = []
-            self.servers[str(server)]["name"] = f"server{server}"
+            self.servers[str(server)]["name"] = server["server_name"]
             random_id = random.randint(0, self.slots - 1)
             for i in range(self.k):
                 hash_val = self.server_hash(random_id, i)

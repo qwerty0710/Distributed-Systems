@@ -19,17 +19,7 @@ RUN apk add --update --no-cache py3-pip
 COPY loadbalancer.py /
 COPY requirements.txt /
 COPY ConsistentHashing.py /
-
-# Install MySQL and set up connection credentials
-RUN set -ex && \
-    apk add --update --no-cache --virtual .mysql-deps \
-        mysql-client \
-        && \
-    echo "mysql:root:root" > /root/.my.cnf \
-    && \
-    chmod 600 /root/.my.cnf \
-    && \
-    apk del --no-cache .mysql-deps
+COPY lb_db_helper.py /
 
 # Install application dependencies
 RUN python3 -m pip install --break-system-packages --no-cache-dir -r requirements.txt
@@ -37,5 +27,7 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir -r requirement
 # Expose port for communication
 EXPOSE 5000
 
+# RUN mysql -u root -h 127.0.0.1 -p
+
 # Run the application
-CMD ["uvicorn", "loadbalancer:app", "--port", "5000", "--host", "0.0.0.0"]
+CMD ["sudo", "uvicorn", "loadbalancer:app", "--port", "5000", "--host", "0.0.0.0"]

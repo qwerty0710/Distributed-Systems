@@ -11,8 +11,8 @@ import uvicorn
 from fastapi import FastAPI, Body, status, Request
 from fastapi.responses import RedirectResponse
 from ConsistentHashing import Consistent_Hashing
-import mysql as sql
-import mysql.connector
+from lb_db_helper import db_helper
+import sqlite3
 
 app = FastAPI()
 
@@ -23,8 +23,9 @@ app.m = 512
 app.reqHash = lambda i: (i ** 2 + 2 * i + 17) % app.m
 # serverHash = lambda i, j: (59 * i ** 2 + 73 + 29 * j ** 2 + j * 7 + 73) % m
 app.serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % app.m
+app.database_helper = db_helper("lb_db")
 
-app.server_id_map = {}
+app.server_id_name_map = {}
 app.shard_consistent_hashing = {}
 app.client_info = {}
 app.db_config = {
@@ -37,7 +38,7 @@ app.db_config = {
 
 def get_smallest_unoccupied_server_id():
     occupied_ids = []
-    for server_id in app.server_id_map:
+    for server_id in app.server_id_name_map.keys():
         occupied_ids.append(server_id)
     occupied_ids = list(map(int, occupied_ids))
     smallest_id = 0
@@ -53,14 +54,14 @@ async def generate_req_id():
 
 async def spawn_new_servers(servers):
     async def spawn_server(docker: Docker, name: str, server_id: int):
-        container = await docker.containers.create_or_replace({
-            "name": name,
-            "image": "server",
-            "networks": ["net1"],
-            "network_aliases": [name],
-            "environment": {"SERVER_ID": server_id},
-            "detach": True
-        })
+        container = await docker.containers.create_or_replace(name=name,
+                                                              config={
+                                                                  "image": "server",
+                                                                  "networks": ["net1"],
+                                                                  "network_aliases": [name],
+                                                                  "environment": {"SERVER_ID": server_id},
+                                                                  "detach": True
+                                                              })
         await container.start()
 
     async with Docker() as docker:
@@ -84,7 +85,6 @@ async def make_request(server_name, payload, path):
 @app.post('/init', status_code=status.HTTP_200_OK)
 async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
                servers: dict = Body(...)):
-
     # get data from the request fastAPI
     shard_to_server = {}
     shard_list = []
@@ -92,30 +92,20 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
         shard_to_server[shards[i]["Shard_id"]] = []
     for server in servers.keys():
         server_id = get_smallest_unoccupied_server_id()
+        app.server_id_name_map[server_id] = server
         for i in range(len(servers[server])):
             # print(server_id)
             shard_to_server[servers[server][i]].append(server_id)
     for shard in shard_to_server.keys():
-        app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, shard_to_server[shard])
-    # create shardT and mapT in SQL
-    curx = sql.connector.connect(**app.db_config)
-    cursor = curx.cursor()
-    cursor.execute(f"CREATE DATABASE IF NOT EXISTS metadata")
-    cursor.execute(f"USE metadata")
-    cursor.execute(f"CREATE TABLE IF NOT EXISTS mapT (shard_id varchar(255), server_id INT)")
-    cursor.execute(
-        f"CREATE TABLE IF NOT EXISTS shardT (stud_id_low INT PRIMARY KEY, shard id INT NOT NULL, shard size INT NOT NULL, valid_idx INT NOT NULL)")
-    curx.commit()
+        server_name_id = []
+        for server_id in shard_to_server[shard]:
+            server_name_id.append({"server_name": app.server_id_name_map[server_id], "server_id": server_id})
+        app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, server_name_id)
+    for shard in shards:
+        app.database_helper.add_shard(shard)
     for server in servers.keys():
         for shard in servers[server]:
-            cursor.execute(f"INSERT INTO mapT (shard_id, server_id) VALUES ({shard}, {server})")
-    for shard in shards:
-        cursor.execute(
-            f"INSERT INTO shardT (stud_id_low, shard_id, shard_size, valid_idx) VALUES ({shard['Stud_id_low']}, {shard['Shard_id']}, {shard['Shard_size']}, {shard['valid_idx']})")
-    curx.commit()
-    curx.close()
-    # spawn the servers and initialize the shards
-
+            app.database_helper.add_server(shard, server)
     await spawn_new_servers(servers.keys())
 
     # hit the '/config' endpoint of the servers to initialize the shards using aiohttp
@@ -146,7 +136,7 @@ async def get_replicas():
 
 @app.post('/add')
 async def add_replicas(n: int = Body(...), new_shards: list[dict] = Body(...),
-                       servers: dict = Body(...))->dict[str,str]:
+                       servers: dict = Body(...)) -> dict[str, str]:
     # map the request id to the server in the consistent hashing ring using the request hash function
 
     hostnames: array[str] = array("u", servers.keys())
@@ -240,7 +230,7 @@ async def get(path, request: Request):
         await make_request(server_name, {}, "home")
         await asyncio.sleep(1)
         return RedirectResponse(request.url)
-            # print("hallelujah!!")
+        # print("hallelujah!!")
 
         return res, 200
     else:

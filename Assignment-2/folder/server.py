@@ -12,7 +12,7 @@ shard_data: Dict[str, List] = {
 
 
 @app.post("/config")
-async def configure_shards(schema:str = Body(...), shards: List[str] = Body(...)):
+async def configure_shards(schema: str = Body(...), shards: List[str] = Body(...)):
 
     """Configures shards."""
     for shard in shards:
