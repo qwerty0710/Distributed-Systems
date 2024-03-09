@@ -19,11 +19,12 @@ app = FastAPI()
 # Number of slots in the ring
 # m = int(os.getenv("m"))
 app.m = 512
-# reqHash = lambda i: (67 * i ** 3 + 3 * i ** 2 + 53 * i + 97) % m
+# reqHash = lambda i: (67 * i ** 3 + 3 * i ** 2 + 53 * i + 97) % app.m
 app.reqHash = lambda i: (i ** 2 + 2 * i + 17) % app.m
-# serverHash = lambda i, j: (59 * i ** 2 + 73 + 29 * j ** 2 + j * 7 + 73) % m
+# serverHash = lambda i, j: (59 * i ** 2 + 73 + 29 * j ** 2 + j * 7 + 73) % app.m
 app.serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % app.m
 app.database_helper = db_helper("lb_db")
+app.configurations = {}
 
 app.server_id_name_map = {}
 app.shard_consistent_hashing = {}
@@ -53,23 +54,7 @@ async def generate_req_id():
 
 
 async def spawn_new_servers(servers_id_name_map):
-    # async def spawn_server(docker: Docker, name: str, server_id: int):
-    #     container = await docker.containers.create_or_replace(name=name,
-    #                                                           config={
-    #                                                               "image": "server",
-    #                                                               "networks": ["net1"],
-    #                                                               "network_aliases": [name],
-    #                                                               "environment": {"SERVER_ID": server_id},
-    #                                                               "detach": True
-    #                                                           })
-    #     await container.start()
-    # async with Docker() as docker:
-    #     tasks = []
-    #     for server_name in servers:
-    #         server_id = get_smallest_unoccupied_server_id()
-    #         tasks.append(spawn_server(docker, server_name, server_id))
-    #     await asyncio.gather(*tasks)
-    # print("helloooooooooooo")
+
     for server_id in servers_id_name_map.keys():
         cmd = os.popen(f"sudo docker run --rm --name {servers_id_name_map[server_id]} "
                        f"--network net1 "
@@ -104,6 +89,13 @@ async def make_request(server_name, payload, path):
 @app.post('/init', status_code=status.HTTP_200_OK)
 async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
                servers: dict = Body(...)):
+
+    # copy the N, schema, shards, and servers to the app.configurations
+    app.configurations["N"] = N
+    app.configurations["schema"] = schema
+    app.configurations["shards"] = shards
+    app.configurations["servers"] = servers
+
     # get data from the request fastAPI
     shard_to_server = {}
     shard_list = []
@@ -144,6 +136,9 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     }
     return response
 
+@app.get('/status')
+async def get_status():
+    return app.configurations
 
 @app.get('/rep')
 async def get_replicas():
