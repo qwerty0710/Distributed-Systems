@@ -129,7 +129,6 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
         await make_request(sname, payload, "config")
 
 
-
     response = {
         "message": "Configured database",
         "status": "success"
