@@ -7,7 +7,7 @@ class db_helper:
         self.conn = sqlite3.connect(self.db_name)
         cursor = self.conn.cursor()
         cursor.execute('''CREATE TABLE IF NOT EXISTS ShardT (
-                            stud_id_low INTEGER PRIMARY KEY,
+                            stud_id_low INTEGER NOT NULL,
                             shard_id TEXT NOT NULL,
                             shard_size INTEGER NOT NULL,
                             valid_idx INTEGER NOT NULL

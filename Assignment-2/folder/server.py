@@ -1,93 +1,96 @@
+from flask import Flask, request, jsonify
 import os
+import helper as db
 
-from fastapi import FastAPI, Body, HTTPException, status
-from typing import Optional, List, Dict
-import uvicorn
-
-app = FastAPI()
+app = Flask(__name__)
 
 # Placeholder for shard data
-shard_data: Dict[str, List] = {
-    "sh1": [],
-    "sh2": [],
-}
+shard_data = {}
 
 sid = os.getenv('SERVER_ID', 'Unknown')
 
-@app.post("/config")
-async def configure_shards(schema: str = Body(...), shards: List[str] = Body(...)):
 
-    """Configures shards."""
-    for shard in shards:
-        shard_data[shard] = []
-    return {
-        "message": f"Server{sid}:{', '.join(shards)} configured",
-        "status": "success",
-    }
-
-@app.get("/heartbeat")
-async def heartbeat(data:int = Body(...) ):
-    """Responds to heartbeat requests."""
-    return status.HTTP_200_OK
-from fastapi import FastAPI, Body, HTTPException, status, Request
+@app.route('/config', methods=['POST'])
+def config():
+    payload = request.json
+    student_db = db.StudentDatabase()
+    conn = student_db.create_connection()
+    msg = sid + ':'
+    msg += str(student_db.create_table(conn, payload))
+    msg += 'configured'
+    conn.close()
+    return jsonify({
+        "message": msg,
+        "status": "success"
+    }), 200
 
 
-@app.get("/copy")
-async def copy_data(shards: List[str] = Body(...)):
-    """Copies data for specified shards."""
-    response_data = {shard: shard_data[shard] for shard in shards}
-    response_data["status"] = "success"
-    return response_data
+@app.route('/heartbeat', methods=['GET'])
+def heartbeat():
+    return '', 200
 
 
-@app.post("/read")
-async def read_data(shard: str, low: int, high: int):
-    """Reads data within a specified range from a shard."""
-    filtered_data = [
-        entry for entry in shard_data[shard] if low <= entry["Stud_id"] <= high
-    ]
-    return {"data": filtered_data, "status": "success"}
+@app.route('/copy', methods=['GET'])
+def copy_data():
+    payload = request.json
+    shards = payload.get('shards')
+    student_db = db.StudentDatabase()
+    conn = student_db.create_connection()
+    data = student_db.copy(conn, shards)
+    response = {}
+    for i in range(len(shards)):
+        response[shards[i]] = data[i]
+    response["status"] = "success"
+    return jsonify(response), 200
 
 
-@app.post("/write")
-async def write_data(shard: str, data: dict):
-    """Writes data to a shard."""
-    shard_data[shard].append(data)
-    return {"message": "Data entry added", "status": "success"}
+@app.route('/read', methods=['POST'])
+def read_data():
+    payload = request.json
+    student_db = db.StudentDatabase()
+    conn = student_db.create_connection()
+    data = student_db.read(conn, payload)
+    return jsonify({
+        "data": data,
+        "status": "success"
+    }), 200
 
 
-@app.put("/update")
-async def update_data(shard: str, stud_id: int, data: dict):
-    """Updates data for a specific Stud_id in a shard."""
-    for i, entry in enumerate(shard_data[shard]):
-        if entry["Stud_id"] == stud_id:
-            shard_data[shard][i] = data
-            return {
-                "message": f"Data entry for Stud_id:{stud_id} updated",
-                "status": "success",
-            }
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Data entry for Stud_id:{stud_id} not found",
-    )
+@app.route('/write', methods=['POST'])
+def write_data():
+    payload = request.json
+    student_db = db.StudentDatabase()
+    conn = student_db.create_connection()
+    message, curr_idx = student_db.write(conn, payload)
+    return jsonify({
+        "message": message,  # Provide the actual data read from the database
+        "current_idx": curr_idx,
+        "status": "success"
+    }), 200
 
 
-@app.delete("/del")
-async def delete_data(shard: str, stud_id: int):
-    """Deletes data for a specific Stud_id in a shard."""
-    for i, entry in enumerate(shard_data[shard]):
-        if entry["Stud_id"] == stud_id:
-            del shard_data[shard][i]
-            return {
-                "message": f"Data entry with Stud_id:{stud_id} removed",
-                "status": "success",
-            }
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Data entry for Stud_id:{stud_id} not found",
-    )
+@app.route('/update', methods=['PUT'])
+def update_data():
+    payload = request.json
+    student_db = db.StudentDatabase()
+    conn = student_db.create_connection()
+    message = student_db.update(conn, payload)
+    return jsonify({
+        "message": message,
+        "status": "success"
+    }), 200
 
+
+@app.route('/del', methods=['DELETE'])
+def delete_data():
+    payload = request.json
+    student_db = db.StudentDatabase()
+    conn = student_db.create_connection()
+    message = student_db.delete(conn, payload)
+    return jsonify({
+        "message": message,
+        "status": "success"
+    }), 200
 
 if __name__ == "__main__":
-
-    uvicorn.run("server:app", host="0.0.0.0", port=5000, log_level="info")
+    app.run(host='0.0.0.0', port=5000, debug=True)
