@@ -172,12 +172,12 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
 
 @app.get('/status')
 async def get_status():
+
     shard_tuples = app.database_helper.get_shard_data()
-    print("!!!!!!!", shard_tuples)
-    shards = app.schema
-    # for stud_id_low, shard_id, shard_size in shard_tuples:
-    #     shard_dict = {"stud_id_low": stud_id_low, "shard_id": shard_id, "shard_size": shard_size}
-    #     shards.append(shard_dict)
+    shards = []
+    for stud_id_low, shard_id, shard_size in shard_tuples:
+        shard_dict = {"stud_id_low": stud_id_low, "shard_id": shard_id, "shard_size": shard_size}
+        shards.append(shard_dict)
     server_shard = app.database_helper.get_server_data()
     servers = {}
     for shard, server in server_shard:
@@ -185,8 +185,8 @@ async def get_status():
     for shard, server in server_shard:
         servers[server].append(shard)
     schema = app.schema
-    N = len(servers)
-    response = {"N": N, "shards": shards, "servers": servers, "schema": schema}
+    n = len(servers)
+    response = {"N": n, "shards": shards, "servers": servers, "schema": schema}
     print("buffoon!!!")
     print(response)
     return response

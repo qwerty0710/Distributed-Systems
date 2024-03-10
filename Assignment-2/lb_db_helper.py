@@ -20,6 +20,7 @@ class db_helper:
                             FOREIGN KEY (Shard_id) REFERENCES ShardT(shard_id)
                         )''')
         self.conn.commit()
+        self.cursor.close()
 
     def __del__(self):
         self.conn.close()
@@ -28,20 +29,29 @@ class db_helper:
         return self.conn
 
     def add_shard(self, shard):
-        self.cursor.execute('INSERT INTO shardT (stud_id_low, shard_id, shard_size, valid_idx) VALUES (?,?,?,?)',
-                          (shard['Stud_id_low'], shard['Shard_id'], shard['Shard_size'], shard['curr_idx']))
+        self.conn = sqlite3.connect(self.db_name)
+        cursor = self.conn.cursor()
+        cursor.execute('INSERT INTO shardT (stud_id_low, shard_id, shard_size, valid_idx) VALUES (?,?,?,?)',
+                            (shard['Stud_id_low'], shard['Shard_id'], shard['Shard_size'], shard['curr_idx']))
         self.conn.commit()
-
+        cursor.close()
     def add_server(self, shard, server):
-        self.cursor.execute('INSERT INTO mapT (shard_id , server_id) VALUES (?,?)', (shard, server))
+        cursor = self.conn.cursor()
+        cursor.execute('INSERT INTO mapT (shard_id , server_id) VALUES (?,?)', (shard, server))
         self.conn.commit()
+        cursor.close()
 
     def get_shard_data(self):
-        self.cursor.execute('SELECT stud_id_low,shard_id,shard_size FROM shardT')
-        data = self.conn.cursor().fetchall()
+        self.conn = sqlite3.connect(self.db_name)
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT stud_id_low,shard_id,shard_size FROM shardT')
+        data = cursor.fetchall()
+        cursor.close()
         return data
 
     def get_server_data(self):
-        self.cursor.execute('SELECT * FROM mapT')
-        data = self.cursor.fetchall()
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM mapT')
+        data = cursor.fetchall()
+        cursor.close()
         return data
