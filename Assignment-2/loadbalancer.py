@@ -3,6 +3,7 @@ import json
 import os
 import random
 from array import array
+from contextlib import asynccontextmanager
 
 import aiohttp
 from aiodocker import Docker
@@ -14,7 +15,14 @@ from ConsistentHashing import Consistent_Hashing
 from lb_db_helper import db_helper
 import sqlite3
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    stop_heartbeat()
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Number of slots in the ring
 # m = int(os.getenv("m"))
@@ -86,6 +94,7 @@ async def make_request(server_name, payload, path):
         return {"message": f"<Error> {e}",
                 "status": "failure"}, 400
 
+
 @app.post('/init', status_code=status.HTTP_200_OK)
 async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
                servers: dict = Body(...)):
@@ -135,36 +144,51 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     }
     return response
 
+
 @app.get('/status')
 async def get_status():
-    return app.configurations
+    shard_tuples = app.database_helper.get_shard_data()
+    shards = [dict]
+    for stud_id_low, shard_id, shard_size in shard_tuples:
+        shard_dict = {"stud_id_low": stud_id_low, "shard_id": shard_id, "shard_size": shard_size}
+        shards.append(shard_dict)
+    server_shard = app.database_helper.get_server_data()
+    servers = {}
+    for shard, server in server_shard:
+        servers[server] = []
+    for shard, server in server_shard:
+        servers[server].append(shard)
 
-@app.get('/rep')
-async def get_replicas():
-    names = check_heartbeat()
-    response = {
-        "message": {
-            "N": len(names),
-            "replicas": names
-        },
-        "status": "successful"
-    }
-    return response
+
+# @app.get('/rep')
+# async def get_replicas():
+#     names = check_heartbeat()
+#     response = {
+#         "message": {
+#             "N": len(names),
+#             "replicas": names
+#         },
+#         "status": "successful"
+#     }
+#     return response
 
 
 @app.post('/add')
 async def add_replicas(n: int = Body(...), new_shards: list[dict] = Body(...),
                        servers: dict = Body(...)) -> dict[str, str]:
-    # map the request id to the server in the consistent hashing ring using the request hash function
-
     hostnames: array[str] = array("u", servers.keys())
-    # Check if the length of the hostname list is less than or equal to the number of new replicas
-    if len(hostnames) > n:
+    if len(hostnames) != n:
         response = {
             "message": "<Error> Length of hostname list is more than newly added instances",
             "status": "failure"
         }
-        return response, status.HTTP_400_BAD_REQUEST
+        return response
+    # adding the new data in database
+    for shard in new_shards:
+        app.database_helper.add_shard(shard)
+    for server in servers:
+        for shard_ in server:
+            app.database_helper.add_server(shard_, server)
 
     # add servers one by one and if n>hostname list then add random servers by generating server id and hostnames
     names = []
@@ -257,6 +281,10 @@ async def get(path, request: Request):
             "status": "failure"
         }
         return errorr, 400
+
+
+def stop_heartbeat():
+    pass
 
 
 if __name__ == '__main__':
