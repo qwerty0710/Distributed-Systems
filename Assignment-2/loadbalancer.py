@@ -32,17 +32,16 @@ app.reqHash = lambda i: (i ** 2 + 2 * i + 17) % app.m
 # serverHash = lambda i, j: (59 * i ** 2 + 73 + 29 * j ** 2 + j * 7 + 73) % app.m
 app.serverHash = lambda i, j: (i ** 2 + j ** 2 + j * 2 + 25) % app.m
 app.database_helper = db_helper("lb_db")
-app.configurations = {}
 
 app.server_id_name_map = {}
-app.shard_consistent_hashing = {}
-app.client_info = {}
+app.shard_consistent_hashing: dict[str, Consistent_Hashing] = {}
 app.db_config = {
     "host": "localhost",
     "user": "root",
     "password": "root",
     "port": "3306"
 }
+app.schema = {}
 
 
 def get_smallest_unoccupied_server_id():
@@ -62,7 +61,6 @@ async def generate_req_id():
 
 
 async def spawn_new_servers(servers_id_name_map):
-
     for server_id in servers_id_name_map.keys():
         cmd = os.popen(f"sudo docker run --rm --name {servers_id_name_map[server_id]} "
                        f"--network net1 "
@@ -80,16 +78,49 @@ async def check_heartbeat():
     pass
 
 
-async def make_request(server_name, payload, path):
+async def make_request(server_name, payload, path, method):
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"http://{server_name}:5000/{path}", data=json.dumps(payload), timeout=2) as response:
-                content = await response.read()
-                if response.status != 404:
-                    return response.json(content_type="application/json")
-                else:
-                    return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
-                            "status": "failure"}, 400
+            if method == "POST":
+                async with session.post(f"http://{server_name}:5000/{path}", data=json.dumps(payload),
+                                        timeout=2) as response:
+                    content = await response.read()
+                    if response.status != 404:
+                        return_obj = await response.json(content_type="application/json")
+                        return return_obj
+                    else:
+                        return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                                "status": "failure"}, 400
+            elif method == "GET":
+                async with session.get(f"http://{server_name}:5000/{path}", data=json.dumps(payload),
+                                       timeout=2) as response:
+                    content = await response.read()
+                    if response.status != 404:
+                        return_obj = await response.json(content_type="application/json")
+                        return return_obj
+                    else:
+                        return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                                "status": "failure"}, 400
+            elif method == "PUT":
+                async with session.put(f"http://{server_name}:5000/{path}", data=json.dumps(payload),
+                                       timeout=2) as response:
+                    content = await response.read()
+                    if response.status != 404:
+                        return_obj = await response.json(content_type="application/json")
+                        return return_obj
+                    else:
+                        return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                                "status": "failure"}, 400
+            elif method == "DELETE":
+                async with session.delete(f"http://{server_name}:5000/{path}", data=json.dumps(payload),
+                                          timeout=2) as response:
+                    content = await response.read()
+                    if response.status != 404:
+                        return_obj = await response.json(content_type="application/json")
+                        return return_obj
+                    else:
+                        return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                                "status": "failure"}, 400
     except Exception as e:
         return {"message": f"<Error> {e}",
                 "status": "failure"}, 400
@@ -98,13 +129,8 @@ async def make_request(server_name, payload, path):
 @app.post('/init', status_code=status.HTTP_200_OK)
 async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
                servers: dict = Body(...)):
-
-    # copy the N, schema, shards, and servers to the app.configurations
-    app.configurations["N"] = N
-    app.configurations["schema"] = schema
-    app.configurations["shards"] = shards
-    app.configurations["servers"] = servers
-
+    # store schema of the shards
+    app.schema = schema
     # get data from the request fastAPI
     shard_to_server = {}
     shard_list = []
@@ -125,6 +151,7 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
             server_config.append({"server_name": app.server_id_name_map[str(server_id)], "server_id": server_id})
         app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, server_config)
     for shard in shards:
+        shard["curr_idx"] = 0
         app.database_helper.add_shard(shard)
     for server in servers.keys():
         for shard in servers[server]:
@@ -132,11 +159,9 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     await spawn_new_servers(app.server_id_name_map)
 
     # hit the '/config' endpoint of the servers to initialize the shards using aiohttp
-
     for sname in servers.keys():
         payload = {"shards": servers[sname], "schema": schema}
-        await make_request(sname, payload, "config")
-
+        await asyncio.gather(asyncio.create_task(make_request(sname, payload, "config", "POST")))
 
     response = {
         "message": "Configured database",
@@ -148,16 +173,23 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
 @app.get('/status')
 async def get_status():
     shard_tuples = app.database_helper.get_shard_data()
-    shards = [dict]
-    for stud_id_low, shard_id, shard_size in shard_tuples:
-        shard_dict = {"stud_id_low": stud_id_low, "shard_id": shard_id, "shard_size": shard_size}
-        shards.append(shard_dict)
+    print("!!!!!!!", shard_tuples)
+    shards = app.schema
+    # for stud_id_low, shard_id, shard_size in shard_tuples:
+    #     shard_dict = {"stud_id_low": stud_id_low, "shard_id": shard_id, "shard_size": shard_size}
+    #     shards.append(shard_dict)
     server_shard = app.database_helper.get_server_data()
     servers = {}
     for shard, server in server_shard:
         servers[server] = []
     for shard, server in server_shard:
         servers[server].append(shard)
+    schema = app.schema
+    N = len(servers)
+    response = {"N": N, "shards": shards, "servers": servers, "schema": schema}
+    print("buffoon!!!")
+    print(response)
+    return response
 
 
 # @app.get('/rep')
@@ -174,39 +206,94 @@ async def get_status():
 
 
 @app.post('/add')
-async def add_replicas(n: int = Body(...), new_shards: list[dict] = Body(...),
+async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
                        servers: dict = Body(...)) -> dict[str, str]:
-    hostnames: array[str] = array("u", servers.keys())
-    if len(hostnames) != n:
+    hostnames = servers.keys()
+    if len(hostnames) != N:
         response = {
             "message": "<Error> Length of hostname list is more than newly added instances",
             "status": "failure"
         }
         return response
+    names = []
+    mapT_data = app.database_helper.get_server_data()
+    for shard, server_id in mapT_data:
+        names.append(app.server_id_name_map[server_id])
     # adding the new data in database
     for shard in new_shards:
+        shard["curr_idx"] = 0
         app.database_helper.add_shard(shard)
     for server in servers:
         for shard_ in server:
             app.database_helper.add_server(shard_, server)
 
     # add servers one by one and if n>hostname list then add random servers by generating server id and hostnames
-    names = []
-    names = check_heartbeat()
-    for i in range(n):
+    # names = check_heartbeat()
+    new_server_names = []
+    for hostname in hostnames:
         server_id = get_smallest_unoccupied_server_id()
-        if i < len(hostnames):
-            name = hostnames[i]
-            if name in names:
-                name = "randomserver" + str(server_id)
-        else:
+        name = hostname
+        if name in names:
             name = "randomserver" + str(server_id)
-
         # spawn new server
         await spawn_new_servers(name)
+        app.server_id_name_map[server_id] = name
         names.append(name)
+        new_server_names.append(name)
+
+    # add new server to the old shards consistent hashing
+    all_shards_req = []
+    for server_name in servers.keys():
+        for shard in servers[server_name]:
+            all_shards_req.append(shard)
+    for shard in all_shards_req:
+        if shard in app.shard_consistent_hashing.keys():
+            servers_containing_shard = []
+            for server_name in servers.keys():
+                if shard in servers[server_name]:
+                    servers_containing_shard.append(server_name)
+            server_id_list = []
+            for server_id in app.server_id_name_map.keys():
+                if app.server_id_name_map[server_id] in servers_containing_shard:
+                    server_id_list.append(server_id)
+            for new_server_id in server_id_list:
+                app.shard_consistent_hashing[shard].add_server(new_server_id, app.server_id_name_map[new_server_id])
+
+    # bring the data stored in old shards to the new server
+    for shard in all_shards_req:
+        if shard in app.shard_consistent_hashing.keys():
+            new_server_names = []
+            shard_stored_data = {}
+            for server_name in servers.keys():
+                if shard in servers[server_name]:
+                    new_server_names.append(server_name)
+            for shard_server_name in app.shard_consistent_hashing[shard].servers:
+                if shard_server_name not in new_server_names:
+                    shard_stored_data = await make_request(shard_server_name, {"shards": [shard]}, "copy", "GET")
+                    break
+            for new_server in new_server_names:
+                request_payload = {
+                    "shard": shard,
+                    "curr_idx": 0,
+                    "data": shard_stored_data[shard]
+                }
+                await make_request(new_server, request_payload, "write", "POST")
+
+    # update the consistent hashing for newly added servers and shards
+    for shard in new_shards:
+        servers_containing_shard = []
+        for server_name in servers.keys():
+            if shard["Shard_id"] in servers[server_name]:
+                servers_containing_shard.append(server_name)
+        server_id_list = []
+        for server_id in app.server_id_name_map.keys():
+            if app.server_id_name_map[server_id] in servers_containing_shard:
+                server_id_list.append(server_id)
+        app.shard_consistent_hashing[shard["Shard_id"]] = Consistent_Hashing(app.m, app.reqHash, app.serverHash,
+                                                                             server_id_list)
+
     message = "Add "
-    for name in names:
+    for name in new_server_names:
         message = message + name + ", "
     message.removesuffix(", ")
     response = {
@@ -214,7 +301,7 @@ async def add_replicas(n: int = Body(...), new_shards: list[dict] = Body(...),
         "message": message,
         "status": "successful"
     }
-    print(app.server_replicas.servers)
+    print(app.server_id_name_map)
     return response
 
 
@@ -260,27 +347,27 @@ async def remove_replicas(request: Request):
     return response
 
 
-@app.get('/<path:path>')
-async def get(path, request: Request):
-    global server_replicas
-    req_slot = generate_req_id()
-    server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
-    server_name = server_replicas.servers[str(server_id)]["name"]
-
-    if path == "home":
-        res = None
-        await make_request(server_name, {}, "home")
-        await asyncio.sleep(1)
-        return RedirectResponse(request.url)
-        # print("hallelujah!!")
-
-        return res, 200
-    else:
-        errorr = {
-            "message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
-            "status": "failure"
-        }
-        return errorr, 400
+# @app.get('/<path:path>')
+# async def get(path, request: Request):
+#     global server_replicas
+#     req_slot = generate_req_id()
+#     server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
+#     server_name = server_replicas.servers[str(server_id)]["name"]
+#
+#     if path == "home":
+#         res = None
+#         await make_request(server_name, {}, "home")
+#         await asyncio.sleep(1)
+#         return RedirectResponse(request.url)
+#         # print("hallelujah!!")
+#
+#         return res, 200
+#     else:
+#         errorr = {
+#             "message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+#             "status": "failure"
+#         }
+#         return errorr, 400
 
 
 def stop_heartbeat():

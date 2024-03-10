@@ -29,7 +29,7 @@ class db_helper:
 
     def add_shard(self, shard):
         self.cursor.execute('INSERT INTO shardT (stud_id_low, shard_id, shard_size, valid_idx) VALUES (?,?,?,?)',
-                          (shard['Stud_id_low'], shard['Shard_id'], shard['Shard_size'], shard['Stud_id_low']))
+                          (shard['Stud_id_low'], shard['Shard_id'], shard['Shard_size'], shard['curr_idx']))
         self.conn.commit()
 
     def add_server(self, shard, server):
