@@ -33,7 +33,7 @@ def config():
 
 @app.route('/heartbeat', methods=['GET'])
 def heartbeat():
-    return '', 200
+    return jsonify({}), 200
 
 
 @app.route('/copy', methods=['GET'])
@@ -45,8 +45,8 @@ def copy_data():
     data = student_db.copy(conn, shards)
     conn.close()
     response = {}
-    # for i in range(len(shards)):
-    #     response[shards[i]] = data[i]
+    for i in range(len(shards)):
+        response[shards[i]] = data[i]
     response["status"] = "success"
     return jsonify(response), 200
 

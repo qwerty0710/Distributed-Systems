@@ -147,12 +147,3 @@ class StudentDatabase:
         message = f'data entry for stud_id {stud_id} deleted '
         return message
 
-
-def main():
-    student_db = StudentDatabase()
-    conn = student_db.create_connection()
-    conn.close()
-
-
-if __name__ == "__main__":
-    main()
