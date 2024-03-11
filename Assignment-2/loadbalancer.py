@@ -100,7 +100,7 @@ async def make_request(server_name, payload, path, method):
                 async with session.get(f"http://{server_name}:5000/{path}", json=payload,
                                        timeout=2) as response:
                     content = await response.read()
-                    # print(content)
+                    print(content)
                     if response.status != 404:
                         return_obj = await response.json(content_type="application/json")
                         print(return_obj)
@@ -215,7 +215,7 @@ async def get_status():
 @app.post('/add')
 async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
                        servers: dict = Body(...)) -> dict[str, str]:
-    hostnames = copy(list(servers.keys()))
+    hostnames = list(servers.keys())
     if len(hostnames) != N:
         response = {
             "message": "<Error> Length of hostname list is more than newly added instances",
@@ -238,27 +238,29 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
     # add servers one by one and if n>hostname list then add random servers by generating server id and hostnames
     # names = check_heartbeat()
     new_server_names = []
-    for i in range(len(hostnames)):
+    for hostname in hostnames:
         server_id = get_smallest_unoccupied_server_id()
-        name = hostnames[i]
+        name = hostname
         if (name in names) or not (bool(re.match(r"^[a-zA-Z][a-zA-Z0-9-]{0,61}$", name))):
             name = "randomserver" + str(server_id)
+            temp_shard_list=servers[hostname]
+            del servers[hostname]
+            servers[name]=temp_shard_list
         # spawn new server
         await spawn_new_servers({str(server_id): name})
-        hostnames[i] = name
         app.server_id_name_map[server_id] = name  ###
         names.append(name)
         new_server_names.append(name)
 
     # add new server to the old shards consistent hashing
     all_shards_req = [] # all shards of this request old and new shards
-    for server_name in hostnames:
+    for server_name in servers.keys():
         for shard in servers[server_name]:
             all_shards_req.append(shard)
     for shard in all_shards_req:
         if shard in app.shard_consistent_hashing.keys():  # if the shard is old shard (consustent hashing is not yet updated)
             servers_containing_shard = []
-            for server_name in hostnames:
+            for server_name in servers.keys():
                 if shard in servers[server_name]:
                     servers_containing_shard.append(server_name)
             server_id_list = []
@@ -280,16 +282,17 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
                 if shard_server_name not in new_server_names:
                     # shard_to_get_data = [shard]
                     # print(shard_to_get_data)
-                    payload = {"shards": ["sh3"]}
-                    # payload = {}
-                    # payload["shards"] = []
-                    # payload["shards"].append(str(shard))
+                    # payload = {"shards": ["sh3"]}
+                    payload = {}
+                    payload["shards"] = []
+                    payload["shards"].append(str(shard))
                     print(payload)
                     # print(str(app.shard_consistent_hashing["sh3"].servers))
                     req_data = await make_request(shard_server_name["name"], payload, "copy", "GET")
                     shard_stored_data = {}
                     print(req_data)
-                    for data_tuple in req_data:
+                    for data_tuple in req_data[shard]:
+                        print(data_tuple, "--------")
                         for i, data_element in enumerate(data_tuple):
                             shard_stored_data[app.db_schema["columns"][i]] = data_element
                     break
