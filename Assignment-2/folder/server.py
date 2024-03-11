@@ -34,19 +34,17 @@ def heartbeat():
 
 @app.route('/copy', methods=['GET'])
 def copy_data():
-    # payload = json.loads(request.data)
-    # shards = payload.get('shards')
-    # student_db = db.StudentDatabase()
-    # conn = student_db.create_connection()
-    # data = student_db.copy(conn, shards)
-    # response = {}
-    # for i in range(len(shards)):
-    #     response[shards[i]] = data[i]
-    response = "success"
-    jsonify({
-        "message": "yayyyy",
-        "status": "success"
-    }), 200
+    payload = json.loads(request.data)
+    shards = payload.get('shards')
+    student_db = db.StudentDatabase()
+    conn = student_db.create_connection()
+    data = student_db.copy(conn, shards)
+    response = {}
+    for i in range(len(shards)):
+        response[shards[i]] = data[i]
+
+    response['status'] = 'success'
+    return jsonify(response), 200
 
 
 @app.route('/read', methods=['POST'])
@@ -98,4 +96,4 @@ def delete_data():
     }), 200
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
