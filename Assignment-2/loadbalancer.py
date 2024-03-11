@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import re
 from array import array
 from contextlib import asynccontextmanager
 
@@ -41,7 +42,7 @@ app.db_config = {
     "password": "root",
     "port": "3306"
 }
-app.schema = {}
+app.db_schema = {}
 
 
 def get_smallest_unoccupied_server_id():
@@ -153,8 +154,8 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     for shard in shards:
         shard["curr_idx"] = 0
         app.database_helper.add_shard(shard)
-    for server in servers.keys():
-        for shard in servers[server]:
+    for server in app.server_id_name_map.keys():
+        for shard in servers[app.server_id_name_map[server]]:
             app.database_helper.add_server(shard, server)
     await spawn_new_servers(app.server_id_name_map)
 
@@ -172,7 +173,6 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
 
 @app.get('/status')
 async def get_status():
-
     shard_tuples = app.database_helper.get_shard_data()
     shards = []
     for stud_id_low, shard_id, shard_size in shard_tuples:
@@ -184,7 +184,7 @@ async def get_status():
         servers[server] = []
     for shard, server in server_shard:
         servers[server].append(shard)
-    schema = app.schema
+    schema = app.db_schema
     n = len(servers)
     response = {"N": n, "shards": shards, "servers": servers, "schema": schema}
     print("buffoon!!!")
@@ -217,6 +217,7 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
         return response
     names = []
     mapT_data = app.database_helper.get_server_data()
+    print(mapT_data)
     for shard, server_id in mapT_data:
         names.append(app.server_id_name_map[server_id])
     # adding the new data in database
@@ -233,10 +234,10 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
     for hostname in hostnames:
         server_id = get_smallest_unoccupied_server_id()
         name = hostname
-        if name in names:
+        if (name in names) or not (bool(re.match(r"^[a-zA-Z][a-zA-Z0-9-]{0,61}$", name))):
             name = "randomserver" + str(server_id)
         # spawn new server
-        await spawn_new_servers(name)
+        await spawn_new_servers({str(server_id): name})
         app.server_id_name_map[server_id] = name
         names.append(name)
         new_server_names.append(name)
@@ -269,7 +270,12 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
                     new_server_names.append(server_name)
             for shard_server_name in app.shard_consistent_hashing[shard].servers:
                 if shard_server_name not in new_server_names:
-                    shard_stored_data = await make_request(shard_server_name, {"shards": [shard]}, "copy", "GET")
+                    req_data = await make_request(shard_server_name, {"shards": [shard]}, "copy", "GET")
+                    shard_stored_data = req_data
+                    print(req_data)
+                    # for data_tuple in req_data:
+                    #     for i, data_element in enumerate(data_tuple):
+                    #         shard_stored_data[app.schema["columns"][i]] = data_element
                     break
             for new_server in new_server_names:
                 request_payload = {
