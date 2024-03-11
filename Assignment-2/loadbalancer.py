@@ -83,29 +83,32 @@ async def make_request(server_name, payload, path, method):
     try:
         async with aiohttp.ClientSession() as session:
             if method == "POST":
-                async with session.post(f"http://{server_name}:5000/{path}", data=json.dumps(payload),
+                async with session.post(f"http://{server_name}:5000/{path}", json=payload,
                                         timeout=2) as response:
                     content = await response.read()
+                    # print(content)
                     if response.status != 404:
                         return_obj = await response.json(content_type="application/json")
+                        print(return_obj)
                         return return_obj
                     else:
                         return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
                                 "status": "failure"}, 400
             elif method == "GET":
-                async with session.get(f"http://{server_name}:5000/{path}", data=json.dumps(payload),
+                # print("OKKK")
+                async with session.get(f"http://{server_name}:5000/{path}", json=payload,
                                        timeout=2) as response:
                     content = await response.read()
+                    # print(content)
                     if response.status != 404:
                         return_obj = await response.json(content_type="application/json")
                         print(return_obj)
-                        print("OKKK")
                         return return_obj
                     else:
                         return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
                                 "status": "failure"}, 400
             elif method == "PUT":
-                async with session.put(f"http://{server_name}:5000/{path}", data=json.dumps(payload),
+                async with session.put(f"http://{server_name}:5000/{path}", json=payload,
                                        timeout=2) as response:
                     content = await response.read()
                     if response.status != 404:
@@ -115,7 +118,7 @@ async def make_request(server_name, payload, path, method):
                         return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
                                 "status": "failure"}, 400
             elif method == "DELETE":
-                async with session.delete(f"http://{server_name}:5000/{path}", data=json.dumps(payload),
+                async with session.delete(f"http://{server_name}:5000/{path}", json=payload,
                                           timeout=2) as response:
                     content = await response.read()
                     if response.status != 404:
@@ -274,32 +277,32 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
                     print(shard)
                     payload = {"shard": shard, "curr_idx": 0}
                     req_data = await make_request(shard_server_name["name"], payload, "copy", "GET")
-    #                 shard_stored_data = req_data
-    #                 print(req_data)
-    #                 for data_tuple in req_data:
-    #                     for i, data_element in enumerate(data_tuple):
-    #                         shard_stored_data[app.db_schema["columns"][i]] = data_element
+                    shard_stored_data = req_data
+                    print(req_data)
+                    for data_tuple in req_data:
+                        for i, data_element in enumerate(data_tuple):
+                            shard_stored_data[app.db_schema["columns"][i]] = data_element
                     break
-    #         for new_server in new_server_names:
-    #             request_payload = {
-    #                 "shard": shard,
-    #                 "curr_idx": 0,
-    #                 "data": shard_stored_data[shard]
-    #             }
-    #             await make_request(new_server, request_payload, "write", "POST")
-    #
-    # # update the consistent hashing for newly added servers and shards
-    # for shard in new_shards:
-    #     servers_containing_shard = []
-    #     for server_name in servers.keys():
-    #         if shard["Shard_id"] in servers[server_name]:
-    #             servers_containing_shard.append(server_name)
-    #     server_id_list = []
-    #     for server_id in app.server_id_name_map.keys():
-    #         if app.server_id_name_map[server_id] in servers_containing_shard:
-    #             server_id_list.append(server_id)
-    #     app.shard_consistent_hashing[shard["Shard_id"]] = Consistent_Hashing(app.m, app.reqHash, app.serverHash,
-    #                                                                          server_id_list)
+            for new_server in new_server_names:
+                request_payload = {
+                    "shard": shard,
+                    "curr_idx": 0,
+                    "data": shard_stored_data[shard]
+                }
+                await make_request(new_server, request_payload, "write", "POST")
+
+    # update the consistent hashing for newly added servers and shards
+    for shard in new_shards:
+        servers_containing_shard = []
+        for server_name in servers.keys():
+            if shard["Shard_id"] in servers[server_name]:
+                servers_containing_shard.append(server_name)
+        server_id_list = []
+        for server_id in app.server_id_name_map.keys():
+            if app.server_id_name_map[server_id] in servers_containing_shard:
+                server_id_list.append(server_id)
+        app.shard_consistent_hashing[shard["Shard_id"]] = Consistent_Hashing(app.m, app.reqHash, app.serverHash,
+                                                                             server_id_list)
 
     message = "Add "
     for name in new_server_names:

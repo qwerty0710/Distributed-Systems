@@ -20,7 +20,7 @@ class StudentDatabase:
             cursor.execute(f'''CREATE TABLE IF NOT EXISTS {sh}(
                                 {schema["columns"][0]} INTEGER NOT NULL,
                                 {schema["columns"][1]} TEXT NOT NULL,
-                                {schema["columns"][2]} TEXT NOT NULL
+                                {schema["columns"][2]} INTEGER NOT NULL
                             )''')
             conn.commit()
         cursor.close()

@@ -39,12 +39,17 @@ def copy_data():
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
     data = student_db.copy(conn, shards)
+    conn.close()
     response = {}
     for i in range(len(shards)):
         response[shards[i]] = data[i]
 
     response['status'] = 'success'
-    return jsonify(response), 200
+    # return jsonify(response), 200
+    return jsonify({
+        "message": "yayyyy",
+        "status": "success"
+    }), 200
 
 
 @app.route('/read', methods=['POST'])
