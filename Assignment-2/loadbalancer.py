@@ -268,9 +268,9 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
             for server_name in servers.keys():
                 if shard in servers[server_name]:
                     new_server_names.append(server_name)
-            for shard_server_name in app.shard_consistent_hashing[shard].servers:
+            for shard_server_name in app.shard_consistent_hashing[shard].servers.values():
                 if shard_server_name not in new_server_names:
-                    req_data = await make_request(shard_server_name, {"shards": [shard]}, "copy", "GET")
+                    req_data = await make_request(shard_server_name["name"], {"shards": [shard]}, "copy", "GET")
                     shard_stored_data = req_data
                     print(req_data)
                     # for data_tuple in req_data:

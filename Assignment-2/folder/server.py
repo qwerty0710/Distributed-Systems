@@ -1,3 +1,5 @@
+import json
+
 from flask import Flask, request, jsonify
 import os
 import helper as db
@@ -32,16 +34,19 @@ def heartbeat():
 
 @app.route('/copy', methods=['GET'])
 def copy_data():
-    payload = request.json
-    shards = payload.get('shards')
-    student_db = db.StudentDatabase()
-    conn = student_db.create_connection()
-    data = student_db.copy(conn, shards)
-    response = {}
-    for i in range(len(shards)):
-        response[shards[i]] = data[i]
-    response["status"] = "success"
-    return jsonify(response), 200
+    # payload = json.loads(request.data)
+    # shards = payload.get('shards')
+    # student_db = db.StudentDatabase()
+    # conn = student_db.create_connection()
+    # data = student_db.copy(conn, shards)
+    # response = {}
+    # for i in range(len(shards)):
+    #     response[shards[i]] = data[i]
+    response = "success"
+    jsonify({
+        "message": "yayyyy",
+        "status": "success"
+    }), 200
 
 
 @app.route('/read', methods=['POST'])

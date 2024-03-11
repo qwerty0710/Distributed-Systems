@@ -13,9 +13,9 @@ class Consistent_Hashing:
         self.server_hash = server_hash
         self.k = int(math.log2(m))
         for server in server_list:
-            self.servers[str(server)] = {}
-            self.servers[str(server)]["slots"] = []
-            self.servers[str(server)]["name"] = server["server_name"]
+            self.servers[str(server["server_id"])] = {}
+            self.servers[str(server["server_id"])]["slots"] = []
+            self.servers[str(server["server_id"])]["name"] = server["server_name"]
             random_id = random.randint(0, self.slots - 1)
             for i in range(self.k):
                 hash_val = self.server_hash(random_id, i)
@@ -24,7 +24,7 @@ class Consistent_Hashing:
                     hash_val = (hash_val + 1) % self.slots
                     # add = add + 1
                 self.ring[hash_val] = server
-                self.servers[str(server)]["slots"].append(hash_val)
+                self.servers[str(server["server_id"])]["slots"].append(hash_val)
         print(self.servers)
 
     def get_req_slot(self, req_id):
