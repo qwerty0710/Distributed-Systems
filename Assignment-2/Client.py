@@ -24,6 +24,15 @@ async def send_request_home(url):
             return await response.json(content_type="application/json")
 
 
+payloadd = {
+    "N": 2,
+    "new_shards": [{"Stud_id_low": 12288, "Shard_id": "sh5", "Shard_size": 4096}],
+    "servers": {"Server4": ["sh3", "sh5"],
+
+                "Server[5]": ["sh2", "sh5"]}
+}
+
+
 async def send_request_add(url):
     async with aiohttp.ClientSession() as session:
         payload = {

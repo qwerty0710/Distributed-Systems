@@ -12,7 +12,6 @@ class StudentDatabase:
         return conn
 
     def create_table(self, conn, payload):
-        payload = payload
         schema = payload.get('schema')
         shards = payload.get('shards')
         cursor = conn.cursor()

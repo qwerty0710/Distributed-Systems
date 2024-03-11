@@ -9,22 +9,26 @@ app = Flask(__name__)
 # Placeholder for shard data
 shard_data = {}
 
-sid = os.getenv('SERVER_ID', 'Unknown')
+sid = int(os.getenv('SERVER_ID'))
 
 
 @app.route('/config', methods=['POST'])
 def config():
-    payload = request.json
-    student_db = db.StudentDatabase()
-    conn = student_db.create_connection()
-    msg = sid + ':'
-    msg += str(student_db.create_table(conn, payload))
-    msg += 'configured'
-    conn.close()
-    return jsonify({
-        "message": msg,
-        "status": "success"
-    }), 200
+    try:
+        payloadd = request.json
+        student_db = db.StudentDatabase()
+        conn = student_db.create_connection()
+        msg = str(sid) + ':'
+        msg += str(student_db.create_table(conn, payloadd))
+        msg += 'configured'
+        conn.close()
+        return jsonify({
+            "message": msg,
+            "status": "success"
+        }), 200
+        # return jsonify(str(payloadd.get('shards'))), 200
+    except Exception as e:
+        raise Exception(e)
 
 
 @app.route('/heartbeat', methods=['GET'])
@@ -34,22 +38,27 @@ def heartbeat():
 
 @app.route('/copy', methods=['GET'])
 def copy_data():
-    payload = json.loads(request.data)
+    payload = request.json
     shards = payload.get('shards')
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
     data = student_db.copy(conn, shards)
     conn.close()
     response = {}
-    for i in range(len(shards)):
-        response[shards[i]] = data[i]
+    # for i in range(len(shards)):
+    #     response[shards[i]] = data[i]
+    response["status"] = "success"
+    return jsonify(response), 200
 
-    response['status'] = 'success'
-    # return jsonify(response), 200
-    return jsonify({
-        "message": "yayyyy",
-        "status": "success"
-    }), 200
+
+@app.errorhandler(500)
+def internal_error(error):
+    return error
+
+
+@app.errorhandler(Exception)
+def exception_handler(error):
+    return "!!!!" + repr(error)
 
 
 @app.route('/read', methods=['POST'])
@@ -58,6 +67,7 @@ def read_data():
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
     data = student_db.read(conn, payload)
+    conn.close()
     return jsonify({
         "data": data,
         "status": "success"
@@ -70,6 +80,7 @@ def write_data():
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
     message, curr_idx = student_db.write(conn, payload)
+    conn.close()
     return jsonify({
         "message": message,  # Provide the actual data read from the database
         "current_idx": curr_idx,
@@ -83,6 +94,7 @@ def update_data():
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
     message = student_db.update(conn, payload)
+    conn.close()
     return jsonify({
         "message": message,
         "status": "success"
@@ -95,10 +107,12 @@ def delete_data():
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
     message = student_db.delete(conn, payload)
+    conn.close()
     return jsonify({
         "message": message,
         "status": "success"
     }), 200
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)

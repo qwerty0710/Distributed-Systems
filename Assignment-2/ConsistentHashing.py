@@ -4,9 +4,9 @@ import random
 
 
 class Consistent_Hashing:
-    servers = {}
 
     def __init__(self, m, req_hash, server_hash, server_list):
+        self.servers = {}
         self.ring = [-1] * m
         self.slots = m
         self.req_hash = req_hash
@@ -26,6 +26,9 @@ class Consistent_Hashing:
                 self.ring[hash_val] = server
                 self.servers[str(server["server_id"])]["slots"].append(hash_val)
         print(self.servers)
+
+    def get_servers(self):
+        return self.servers
 
     def get_req_slot(self, req_id):
         hash_slot = self.req_hash(req_id)

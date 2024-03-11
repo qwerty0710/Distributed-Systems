@@ -5,6 +5,7 @@ import random
 import re
 from array import array
 from contextlib import asynccontextmanager
+from copy import copy
 
 import aiohttp
 from aiodocker import Docker
@@ -149,13 +150,15 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
         app.server_id_name_map[str(server_id)] = server
         for i in range(len(servers[server])):
             # print(server_id)
-            shard_to_server[servers[server][i]].append(server_id)
+            shard_to_server[servers[server][i]].append(str(server_id))
     # passing server names and ids in a dict to consistent hashing for each shard
     for shard in shard_to_server.keys():
         server_config = []
         for server_id in shard_to_server[shard]:
             server_config.append({"server_name": app.server_id_name_map[str(server_id)], "server_id": server_id})
+        print(server_config, "server configgggggg", shard)
         app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, server_config)
+    print(str(app.shard_consistent_hashing))
     for shard in shards:
         shard["curr_idx"] = 0
         app.database_helper.add_shard(shard)
@@ -212,7 +215,7 @@ async def get_status():
 @app.post('/add')
 async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
                        servers: dict = Body(...)) -> dict[str, str]:
-    hostnames = servers.keys()
+    hostnames = copy(list(servers.keys()))
     if len(hostnames) != N:
         response = {
             "message": "<Error> Length of hostname list is more than newly added instances",
@@ -235,26 +238,27 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
     # add servers one by one and if n>hostname list then add random servers by generating server id and hostnames
     # names = check_heartbeat()
     new_server_names = []
-    for hostname in hostnames:
+    for i in range(len(hostnames)):
         server_id = get_smallest_unoccupied_server_id()
-        name = hostname
+        name = hostnames[i]
         if (name in names) or not (bool(re.match(r"^[a-zA-Z][a-zA-Z0-9-]{0,61}$", name))):
             name = "randomserver" + str(server_id)
         # spawn new server
         await spawn_new_servers({str(server_id): name})
-        app.server_id_name_map[server_id] = name
+        hostnames[i] = name
+        app.server_id_name_map[server_id] = name  ###
         names.append(name)
         new_server_names.append(name)
 
     # add new server to the old shards consistent hashing
-    all_shards_req = []
-    for server_name in servers.keys():
+    all_shards_req = [] # all shards of this request old and new shards
+    for server_name in hostnames:
         for shard in servers[server_name]:
             all_shards_req.append(shard)
     for shard in all_shards_req:
-        if shard in app.shard_consistent_hashing.keys():
+        if shard in app.shard_consistent_hashing.keys():  # if the shard is old shard (consustent hashing is not yet updated)
             servers_containing_shard = []
-            for server_name in servers.keys():
+            for server_name in hostnames:
                 if shard in servers[server_name]:
                     servers_containing_shard.append(server_name)
             server_id_list = []
@@ -272,12 +276,18 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
             for server_name in servers.keys():
                 if shard in servers[server_name]:
                     new_server_names.append(server_name)
-            for shard_server_name in app.shard_consistent_hashing[shard].servers.values():
+            for shard_server_name in app.shard_consistent_hashing[shard].get_servers().values():
                 if shard_server_name not in new_server_names:
-                    print(shard)
-                    payload = {"shard": shard, "curr_idx": 0}
+                    # shard_to_get_data = [shard]
+                    # print(shard_to_get_data)
+                    payload = {"shards": ["sh3"]}
+                    # payload = {}
+                    # payload["shards"] = []
+                    # payload["shards"].append(str(shard))
+                    print(payload)
+                    # print(str(app.shard_consistent_hashing["sh3"].servers))
                     req_data = await make_request(shard_server_name["name"], payload, "copy", "GET")
-                    shard_stored_data = req_data
+                    shard_stored_data = {}
                     print(req_data)
                     for data_tuple in req_data:
                         for i, data_element in enumerate(data_tuple):
