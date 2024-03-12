@@ -23,19 +23,19 @@ class Consistent_Hashing:
                 while self.ring[hash_val] != -1:
                     hash_val = (hash_val + 1) % self.slots
                     # add = add + 1
-                self.ring[hash_val] = server
+                self.ring[hash_val] = server["server_id"]
                 self.servers[str(server["server_id"])]["slots"].append(hash_val)
         print(self.servers)
 
     def get_servers(self):
         return self.servers
 
-    def get_req_slot(self, req_id):
+    def get_req_server(self, req_id):
         hash_slot = self.req_hash(req_id)
         while self.ring[hash_slot] == -1:
             hash_slot = hash_slot + 1
             hash_slot = hash_slot % self.slots
-        return hash_slot
+        return self.ring[hash_slot]
 
     def server_del(self, server_id):
         # reallocate if server is deleted

@@ -3,19 +3,15 @@ import json
 import os
 import random
 import re
-from array import array
+import time
 from contextlib import asynccontextmanager
-from copy import copy
 
 import aiohttp
-from aiodocker import Docker
-
 import uvicorn
 from fastapi import FastAPI, Body, status, Request
-from fastapi.responses import RedirectResponse
+
 from ConsistentHashing import Consistent_Hashing
 from lb_db_helper import db_helper
-import sqlite3
 
 
 @asynccontextmanager
@@ -57,7 +53,27 @@ def get_smallest_unoccupied_server_id():
     return smallest_id
 
 
-async def generate_req_id():
+def get_shards_for_stud_id_range(low, high):
+    shard_data = sorted(app.database_helper.get_shard_data(), key=lambda x: x[0])
+    cont = 1
+    i = 0
+    shards_for_req = []
+    while cont and (i < len(shard_data)):
+        right_shard = shard_data[i][0] + shard_data[i][2]
+        left_shard = shard_data[i][0]
+        if high < left_shard or low > right_shard:
+            if high < left_shard:
+                cont = 0
+        else:
+            if right_shard > high:
+                cont = 0
+            shards_for_req.append(
+                {"shard": shard_data[i][1], "range": {"low": max(left_shard, low), "high": min(high, right_shard)}})
+        i = i + 1
+    return shards_for_req
+
+
+def generate_req_id():
     id = random.randint(000000, 999999)
     return id
 
@@ -65,10 +81,12 @@ async def generate_req_id():
 async def spawn_new_servers(servers_id_name_map):
     for server_id in servers_id_name_map.keys():
         cmd = os.popen(f"sudo docker run --rm --name {servers_id_name_map[server_id]} "
-                       f"--network net1 "
-                       f"--network-alias {servers_id_name_map[server_id]} "
-                       f"-e SERVER_ID={int(server_id)} "
-                       f"-d server").read()
+                           f"--network net1 "
+                           f"--network-alias {servers_id_name_map[server_id]} "
+                           f"-e SERVER_ID={int(server_id)} "
+                           f"-p {5001+int(server_id)}:5000 "
+                           f"-d server").read()
+        time.sleep(1)
         if len(cmd) == 0:
             print(f"Unable to start server with server id: {server_id} with name {servers_id_name_map[server_id]}")
             # server_replicas.server_del(server_id)
@@ -169,6 +187,7 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
 
     # hit the '/config' endpoint of the servers to initialize the shards using aiohttp
     for sname in servers.keys():
+        print(sname)
         payload = {"shards": servers[sname], "schema": schema}
         await asyncio.gather(asyncio.create_task(make_request(sname, payload, "config", "POST")))
 
@@ -243,9 +262,9 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
         name = hostname
         if (name in names) or not (bool(re.match(r"^[a-zA-Z][a-zA-Z0-9-]{0,61}$", name))):
             name = "randomserver" + str(server_id)
-            temp_shard_list=servers[hostname]
+            temp_shard_list = servers[hostname]
             del servers[hostname]
-            servers[name]=temp_shard_list
+            servers[name] = temp_shard_list
         # spawn new server
         await spawn_new_servers({str(server_id): name})
         app.server_id_name_map[server_id] = name  ###
@@ -253,7 +272,7 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
         new_server_names.append(name)
 
     # add new server to the old shards consistent hashing
-    all_shards_req = [] # all shards of this request old and new shards
+    all_shards_req = []  # all shards of this request old and new shards
     for server_name in servers.keys():
         for shard in servers[server_name]:
             all_shards_req.append(shard)
@@ -329,6 +348,30 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
     return response
 
 
+@app.post('/read')
+async def read_data(Stud_id: dict = Body(...)):
+    range_stud_id = Stud_id["Stud_id"]
+    print(range_stud_id)
+    shard_list_for_req = get_shards_for_stud_id_range(range_stud_id["low"], range_stud_id["high"])
+    read_output = []
+    shards_queried = []
+    for shard in shard_list_for_req:
+        shards_queried.append(shard["shard"])
+        req_id = generate_req_id()
+        server_id = app.shard_consistent_hashing[shard["shard"]].get_req_server(req_id)
+        server_name = app.server_id_name_map[server_id]
+        payload = {"shard": shard["shard"], "Stud_id": shard["range"]}
+        shard_read_data = await make_request(server_name, payload, "read", "POST")
+        for data_element in shard_read_data["data"]:
+            read_output.append(data_element)
+    response = {
+        "shards_queried": shards_queried,
+        "data": read_output,
+        "status": "success"
+    }
+    return response
+
+
 @app.delete('/rm')
 async def remove_replicas(request: Request):
     global server_replicas
@@ -370,9 +413,6 @@ async def remove_replicas(request: Request):
     }
     return response
 
-@app.post('/read')
-async def read_data(Stud_id: dict = Body(...)):
-    pass
 
 
 @app.post('/write')
