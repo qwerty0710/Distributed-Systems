@@ -55,3 +55,10 @@ class db_helper:
         data = cursor.fetchall()
         cursor.close()
         return data
+
+    def get_shard_id(self, stud_id):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT shard_id FROM shardT WHERE stud_id_low <= ? AND ? < stud_id_low + shard_size ORDER BY stud_id_low DESC LIMIT 1', (stud_id, stud_id))
+        data = cursor.fetchone()
+        cursor.close()
+        return data

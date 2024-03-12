@@ -135,7 +135,7 @@ class StudentDatabase:
         cursor.execute(f"UPDATE {table} SET Stud_id=?, Stud_name=?, Stud_marks=? WHERE Stud_id=?",
                        (stud_id, stud_name, stud_marks, s_id))
         conn.commit()
-        message = f'data entry for stud_id:{s_id} updated'
+        message = f'Data entry for stud_id:{s_id} updated'
         return message
 
     def delete(self, conn, payload):

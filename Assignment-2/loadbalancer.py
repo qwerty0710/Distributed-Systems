@@ -290,7 +290,6 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
                     # print(str(app.shard_consistent_hashing["sh3"].servers))
                     req_data = await make_request(shard_server_name["name"], payload, "copy", "GET")
                     shard_stored_data = {}
-                    print(req_data)
                     for data_tuple in req_data[shard]:
                         print(data_tuple, "--------")
                         for i, data_element in enumerate(data_tuple):
@@ -370,6 +369,60 @@ async def remove_replicas(request: Request):
         "status": "successful"
     }
     return response
+
+@app.post('/read')
+async def read_data(Stud_id: dict = Body(...)):
+    pass
+
+
+@app.post('/write')
+async def write_data(data: list[dict] = Body(...)):
+    pass
+
+###### Implement locking
+@app.put('/update')
+async def update_data(stud_id: int = Body(...), data: dict = Body(...)):
+    # find which shard this student id belongs to using mapT table
+    shard_id = app.database_helper.get_shard_id(stud_id)
+    # find all the servers which contains this shard
+    servers_containing_shard = []
+    for server_name in app.shard_consistent_hashing[shard_id].get_servers().values():
+        servers_containing_shard.append(server_name["name"])
+
+    # update the data in all the servers containing this shard
+    for server_name in servers_containing_shard:
+        request_payload = {
+            "shard": shard_id,
+            "data": data,
+            "Stud_id": stud_id
+        }
+        await make_request(server_name, request_payload, "update", "PUT")
+
+    response = {
+        "message": f"Data entry for f'{stud_id}' updated",
+        "status": "success"
+    }
+    return response
+
+@app.put('/del')
+async def delete_data(stud_id: int = Body(...)):
+
+    shard_id = app.database_helper.get_shard_id(stud_id)
+    servers_containing_shard = []
+    for server_name in app.shard_consistent_hashing[shard_id].get_servers().values():
+        servers_containing_shard.append(server_name["name"])
+
+    for server_name in servers_containing_shard:
+        request_payload = {
+            "shard": shard_id,
+            "Stud_id": stud_id
+        }
+        await make_request(server_name, request_payload, "delete", "DELETE")
+
+    response = {
+        "message": f"Data entry for f'{stud_id}' deleted",
+        "status": "success"
+    }
 
 
 # @app.get('/<path:path>')
