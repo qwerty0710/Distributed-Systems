@@ -5,6 +5,7 @@ class db_helper:
     def __init__(self, db_name):
         self.db_name = db_name
         self.conn = sqlite3.connect(self.db_name)
+        self.conn.isolation_level = None
         self.cursor = self.conn.cursor()
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS ShardT (
                             stud_id_low INTEGER NOT NULL,
@@ -44,7 +45,7 @@ class db_helper:
     def get_shard_data(self):
         self.conn = sqlite3.connect(self.db_name)
         cursor = self.conn.cursor()
-        cursor.execute('SELECT stud_id_low,shard_id,shard_size FROM shardT')
+        cursor.execute('SELECT * FROM shardT')
         data = cursor.fetchall()
         cursor.close()
         return data

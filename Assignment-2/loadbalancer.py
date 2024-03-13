@@ -73,6 +73,20 @@ def get_shards_for_stud_id_range(low, high):
     return shards_for_req
 
 
+def get_shards_for_data_write(data):
+    shard_data = sorted(app.database_helper.get_shard_data(), key=lambda x: x[0])
+    shard_to_make_req = {}
+    for shard in shard_data:
+        shard_to_make_req[shard[1]] = {}
+        shard_to_make_req[shard[1]]["curr_idx"] = shard[3]
+        shard_to_make_req[shard[1]]["data"] = []
+    for data_entry in data:
+        shard_index = int(data_entry["Stud_id"]) // int(shard_data[0][2])
+        shard_to_map = shard_data[shard_index][1]
+        shard_to_make_req[shard_to_map]["data"].append(data_entry)
+    return shard_to_make_req
+
+
 def generate_req_id():
     id = random.randint(000000, 999999)
     return id
@@ -81,11 +95,11 @@ def generate_req_id():
 async def spawn_new_servers(servers_id_name_map):
     for server_id in servers_id_name_map.keys():
         cmd = os.popen(f"sudo docker run --rm --name {servers_id_name_map[server_id]} "
-                           f"--network net1 "
-                           f"--network-alias {servers_id_name_map[server_id]} "
-                           f"-e SERVER_ID={int(server_id)} "
-                           f"-p {5001+int(server_id)}:5000 "
-                           f"-d server").read()
+                       f"--network net1 "
+                       f"--network-alias {servers_id_name_map[server_id]} "
+                       f"-e SERVER_ID={int(server_id)} "
+                       f"-p {5001 + int(server_id)}:5000 "
+                       f"-d server").read()
         time.sleep(1)
         if len(cmd) == 0:
             print(f"Unable to start server with server id: {server_id} with name {servers_id_name_map[server_id]}")
@@ -99,56 +113,56 @@ async def check_heartbeat():
 
 
 async def make_request(server_name, payload, path, method):
-    try:
-        async with aiohttp.ClientSession() as session:
-            if method == "POST":
-                async with session.post(f"http://{server_name}:5000/{path}", json=payload,
-                                        timeout=2) as response:
-                    content = await response.read()
-                    # print(content)
-                    if response.status != 404:
-                        return_obj = await response.json(content_type="application/json")
-                        print(return_obj)
-                        return return_obj
-                    else:
-                        return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
-                                "status": "failure"}, 400
-            elif method == "GET":
-                # print("OKKK")
-                async with session.get(f"http://{server_name}:5000/{path}", json=payload,
-                                       timeout=2) as response:
-                    content = await response.read()
-                    print(content)
-                    if response.status != 404:
-                        return_obj = await response.json(content_type="application/json")
-                        print(return_obj)
-                        return return_obj
-                    else:
-                        return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
-                                "status": "failure"}, 400
-            elif method == "PUT":
-                async with session.put(f"http://{server_name}:5000/{path}", json=payload,
-                                       timeout=2) as response:
-                    content = await response.read()
-                    if response.status != 404:
-                        return_obj = await response.json(content_type="application/json")
-                        return return_obj
-                    else:
-                        return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
-                                "status": "failure"}, 400
-            elif method == "DELETE":
-                async with session.delete(f"http://{server_name}:5000/{path}", json=payload,
-                                          timeout=2) as response:
-                    content = await response.read()
-                    if response.status != 404:
-                        return_obj = await response.json(content_type="application/json")
-                        return return_obj
-                    else:
-                        return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
-                                "status": "failure"}, 400
-    except Exception as e:
-        return {"message": f"<Error> {e}",
-                "status": "failure"}, 400
+    # try:
+    async with aiohttp.ClientSession() as session:
+        if method == "POST":
+            async with session.post(f"http://{server_name}:5000/{path}", json=payload,
+                                    timeout=2) as response:
+                content = await response.read()
+                # print(content)
+                if response.status != 404:
+                    return_obj = await response.json(content_type="application/json")
+                    print(return_obj)
+                    return return_obj
+                else:
+                    return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                            "status": "failure"}, 400
+        elif method == "GET":
+            # print("OKKK")
+            async with session.get(f"http://{server_name}:5000/{path}", json=payload,
+                                   timeout=2) as response:
+                content = await response.read()
+                print(content)
+                if response.status != 404:
+                    return_obj = await response.json(content_type="application/json")
+                    print(return_obj)
+                    return return_obj
+                else:
+                    return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                            "status": "failure"}, 400
+        elif method == "PUT":
+            async with session.put(f"http://{server_name}:5000/{path}", json=payload,
+                                   timeout=2) as response:
+                content = await response.read()
+                if response.status != 404:
+                    return_obj = await response.json(content_type="application/json")
+                    return return_obj
+                else:
+                    return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                            "status": "failure"}, 400
+        elif method == "DELETE":
+            async with session.delete(f"http://{server_name}:5000/{path}", json=payload,
+                                      timeout=2) as response:
+                content = await response.read()
+                if response.status != 404:
+                    return_obj = await response.json(content_type="application/json")
+                    return return_obj
+                else:
+                    return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
+                            "status": "failure"}, 400
+# except Exception as e:
+#     return {"message": f"<Error> {e}",
+#             "status": "failure"}, 400
 
 
 @app.post('/init', status_code=status.HTTP_200_OK)
@@ -202,7 +216,7 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
 async def get_status():
     shard_tuples = app.database_helper.get_shard_data()
     shards = []
-    for stud_id_low, shard_id, shard_size in shard_tuples:
+    for stud_id_low, shard_id, shard_size, curr_idx in shard_tuples:
         shard_dict = {"stud_id_low": stud_id_low, "shard_id": shard_id, "shard_size": shard_size}
         shards.append(shard_dict)
     server_shard = app.database_helper.get_server_data()
@@ -414,10 +428,29 @@ async def remove_replicas(request: Request):
     return response
 
 
-
 @app.post('/write')
 async def write_data(data: list[dict] = Body(...)):
-    pass
+    shard_data_map = get_shards_for_data_write(data)
+    shard_meta_data = app.database_helper.get_shard_data()
+    for shard in shard_data_map.keys():
+        returned_idx_set = set()
+        try_again = app.shard_consistent_hashing[shard].get_servers()
+        tries = 1
+        while len(try_again) and tries <= 3:
+            for server in try_again:
+                payload = shard_data_map[shard]
+                payload["shard"] = shard
+                try:
+                    response = await make_request(server,payload,"write","POST")
+                    if payload["curr_idx"]+len(payload["data"]) == response["curr_idx"]:
+                        try_again.remove(server)
+                    else:
+                        raise Exception("curr_idx less than sent curr_idx + data length")
+                except Exception as e:
+                    print(e)
+                    time.sleep(1)
+                    try_again.append(server)
+
 
 ###### Implement locking
 @app.put('/update')
@@ -444,9 +477,9 @@ async def update_data(stud_id: int = Body(...), data: dict = Body(...)):
     }
     return response
 
+
 @app.put('/del')
 async def delete_data(stud_id: int = Body(...)):
-
     shard_id = app.database_helper.get_shard_id(stud_id)
     servers_containing_shard = []
     for server_name in app.shard_consistent_hashing[shard_id].get_servers().values():

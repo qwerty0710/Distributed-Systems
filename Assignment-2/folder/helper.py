@@ -9,6 +9,7 @@ class StudentDatabase:
 
     def create_connection(self):
         conn = sqlite3.connect(self.db_name)
+        conn.isolation_level = None
         return conn
 
     def create_table(self, conn, payload):
@@ -17,7 +18,7 @@ class StudentDatabase:
         cursor = conn.cursor()
         for sh in shards:
             cursor.execute(f'''CREATE TABLE IF NOT EXISTS {sh}(
-                                {schema["columns"][0]} INTEGER NOT NULL,
+                                {schema["columns"][0]} INTEGER NOT NULL PRIMARY KEY ,
                                 {schema["columns"][1]} TEXT NOT NULL,
                                 {schema["columns"][2]} INTEGER NOT NULL
                             )''')
