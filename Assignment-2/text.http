@@ -28,7 +28,7 @@ Content-Type: application/json
 
 
 ###
-POST http://0.0.0.0:5000/write
+POST http://0.0.0.0:5000/writee
 Content-Type: application/json
 
 {

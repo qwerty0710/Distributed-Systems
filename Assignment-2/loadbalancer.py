@@ -76,13 +76,17 @@ def get_shards_for_stud_id_range(low, high):
 def get_shards_for_data_write(data):
     shard_data = sorted(app.database_helper.get_shard_data(), key=lambda x: x[0])
     shard_to_make_req = {}
-    for shard in shard_data:
-        shard_to_make_req[shard[1]] = {}
-        shard_to_make_req[shard[1]]["curr_idx"] = shard[3]
-        shard_to_make_req[shard[1]]["data"] = []
+    # for shard in shard_data:
+    #     shard_to_make_req[shard[1]] = {}
+    #     shard_to_make_req[shard[1]]["curr_idx"] = shard[3]
+    #     shard_to_make_req[shard[1]]["data"] = []
     for data_entry in data:
         shard_index = int(data_entry["Stud_id"]) // int(shard_data[0][2])
         shard_to_map = shard_data[shard_index][1]
+        if shard_to_map not in shard_to_make_req.keys():
+            shard_to_make_req[shard_to_map]={}
+            shard_to_make_req[shard_to_map]["data"]=[]
+            shard_to_make_req[shard_to_map]["curr_idx"] = shard_data[shard_index][3]
         shard_to_make_req[shard_to_map]["data"].append(data_entry)
     return shard_to_make_req
 
@@ -432,21 +436,24 @@ async def remove_replicas(request: Request):
     return response
 
 
-@app.post('/write', status_code=status.HTTP_200_OK)
+@app.post('/writee')
 async def write_data(data: dict = Body(...)):
     data=data["data"]
     print(data)
     shard_data_map = get_shards_for_data_write(data)
+    print(shard_data_map)
     for shard in shard_data_map.keys():
-        try_again = app.shard_consistent_hashing[shard].get_servers()
+        try_again = app.shard_consistent_hashing[shard].get_servers().keys()
         # while len(try_again):
         for server in try_again:
-            payload = shard_data_map[shard]
+            payload = {}
+            payload["data"] =  shard_data_map[shard]["data"]
+            payload["curr_idx"]=shard_data_map[shard]["curr_idx"]
             payload["shard"] = shard
             payload["try_again"] = 1
             print(payload)
             try:
-                response = await make_request(server, payload, "write", "POST")
+                response = await make_request(app.server_id_name_map[server], payload, "write", "POST")
                 if payload["curr_idx"] + len(payload["data"]) == response["curr_idx"]:
                     print("done deal!!!")
                     try_again.remove(server)
@@ -456,7 +463,7 @@ async def write_data(data: dict = Body(...)):
             except Exception as e:
                 print("exception in write", str(e))
                 time.sleep(1)
-        app.database_helper.update_curr_idx(shard,shard["curr_idx"] + len(shard["data"]))
+        app.database_helper.update_curr_idx(shard,shard_data_map[shard]["curr_idx"] + len(shard_data_map[shard]["data"]))
     return {
         "message":f"{len(data)} Data entries added",
         "status":"success"

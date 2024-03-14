@@ -81,13 +81,13 @@ def write_data():
     payload = request.json
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
-    if payload["try_again"]:
+    if payload.get("try_again"):
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ? ORDER BY ROWID",(payload["shard"]))
+        cursor.execute("SELECT * FROM ? ORDER BY ROWID",(payload.get("shard")))
         entries_sorted= cursor.fetchall()
-        if payload["curr_idx"]<len(entries_sorted):
+        if payload.get("curr_idx")<len(entries_sorted):
             for i in range(payload["curr_idx"]+1,len(entries_sorted)):
-                cursor.execute(f"DELETE FROM ? WHERE Stud_id=?", (payload["curr_idx"],entries_sorted[i],))
+                cursor.execute(f"DELETE FROM ? WHERE Stud_id=?", (payload.get("curr_idx"),entries_sorted[i],))
                 cursor.commit()
     message, curr_idx = student_db.write(conn, payload)
     # curr_idxs[payload['shard']]=curr_idx
