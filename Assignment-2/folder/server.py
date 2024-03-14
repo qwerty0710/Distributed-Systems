@@ -94,7 +94,7 @@ def write_data():
     conn.close()
     return jsonify({
         "message": message,  # Provide the actual data read from the database
-        "current_idx": curr_idx,
+        "curr_idx": curr_idx,
         "status": "success"
     }), 200
 

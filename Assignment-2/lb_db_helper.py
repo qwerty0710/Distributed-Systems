@@ -76,7 +76,15 @@ class db_helper:
     def update_curr_idx(self, shard_id, curr_idx):
         self.conn = sqlite3.connect(self.db_name)
         cursor = self.conn.cursor()
-        cursor.execute('UPDATE ? SET curr_idx = ? WHERE shard_id = ?', ("shardT", curr_idx, shard_id))
+        cursor.execute('UPDATE shardT SET valid_idx = ? WHERE shard_id = ?', (curr_idx, shard_id))
         cursor.close()
         self.conn.commit()
        #  self.conn.close()
+
+    def get_servers_for_shard(self, shard_id):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT server_id FROM mapT WHERE shard_id = ?', (shard_id,))
+        data = cursor.fetchall()
+        cursor.close()
+        # self.conn.close()
+        return data

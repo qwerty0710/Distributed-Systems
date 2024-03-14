@@ -443,20 +443,21 @@ async def write_data(data: dict = Body(...)):
     shard_data_map = get_shards_for_data_write(data)
     print(shard_data_map)
     for shard in shard_data_map.keys():
-        try_again = app.shard_consistent_hashing[shard].get_servers().keys()
+        try_again = list(app.shard_consistent_hashing[shard].get_servers().keys())
         # while len(try_again):
         for server in try_again:
             payload = {}
+            payload["shard"] = shard
             payload["data"] =  shard_data_map[shard]["data"]
             payload["curr_idx"]=shard_data_map[shard]["curr_idx"]
-            payload["shard"] = shard
             payload["try_again"] = 1
-            print(payload)
+            # print(payload)
             try:
+                payload = {"shard": "sh1", "data": [{"Stud_id": 1, "Stud_name": "ABC", "Stud_marks": "95"}], "curr_idx": 0}
                 response = await make_request(app.server_id_name_map[server], payload, "write", "POST")
                 if payload["curr_idx"] + len(payload["data"]) == response["curr_idx"]:
                     print("done deal!!!")
-                    try_again.remove(server)
+                    # try_again.remove(server)
                 else:
                     print("heyyyyyyyyyyyy")
                     raise Exception("curr_idx less than sent curr_idx + data length")
