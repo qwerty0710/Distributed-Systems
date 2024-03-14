@@ -67,8 +67,8 @@ class StudentDatabase:
         for data in datas:
             cursor.execute("INSERT INTO {} (Stud_id, Stud_name, Stud_marks) VALUES (?,?,?)".format(table),
                            (int(data['Stud_id']), data['Stud_name'], str(data['Stud_marks'])))
-            conn.commit()
             curr_idx += 1
+        conn.commit()
         cursor.close()
         message = 'Data entries added'
         current_idx = curr_idx

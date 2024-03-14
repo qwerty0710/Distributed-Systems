@@ -6,8 +6,7 @@ import helper as db
 
 app = Flask(__name__)
 
-# Placeholder for shard data
-shard_data = {}
+curr_idxs = {}
 
 sid = int(os.getenv('SERVER_ID'))
 
@@ -16,6 +15,9 @@ sid = int(os.getenv('SERVER_ID'))
 def config():
     try:
         payloadd = request.json
+        shards = payloadd.get('shards')
+        for shard in shards:
+            curr_idxs[shard] = 0
         student_db = db.StudentDatabase()
         conn = student_db.create_connection()
         msg = str(sid) + ':'
@@ -79,7 +81,16 @@ def write_data():
     payload = request.json
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
+    if payload["try_again"]:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM ? ORDER BY ROWID",(payload["shard"]))
+        entries_sorted= cursor.fetchall()
+        if payload["curr_idx"]<len(entries_sorted):
+            for i in range(payload["curr_idx"]+1,len(entries_sorted)):
+                cursor.execute(f"DELETE FROM ? WHERE Stud_id=?", (payload["curr_idx"],entries_sorted[i],))
+                cursor.commit()
     message, curr_idx = student_db.write(conn, payload)
+    # curr_idxs[payload['shard']]=curr_idx
     conn.close()
     return jsonify({
         "message": message,  # Provide the actual data read from the database
