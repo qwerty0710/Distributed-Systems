@@ -23,14 +23,14 @@ POST  http://0.0.0.0:5000/read
 Content-Type: application/json
 
 {
-  "Stud_id": {"low": 4091, "high": 4099}
+  "Stud_id": {"low": 2200, "high": 4099}
 }
 
 
 ###
-POST http://0.0.0.0:5000/writee
+POST http://0.0.0.0:5000/write
 Content-Type: application/json
 
 {
-  "data": [{"Stud_id":2255,"Stud_name":"GHI","Stud_marks":27}]
+  "data": [{"Stud_id":2255,"Stud_name":"GHI","Stud_marks":27},{"Stud_id": 4099,"Stud_name": "Paul","Stud_marks": 95}]
 }

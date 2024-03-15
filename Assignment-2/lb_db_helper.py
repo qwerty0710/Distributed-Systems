@@ -74,7 +74,7 @@ class db_helper:
         return data
 
     def update_curr_idx(self, shard_id, curr_idx):
-        self.conn = sqlite3.connect(self.db_name)
+        # self.conn = sqlite3.connect(self.db_name)
         cursor = self.conn.cursor()
         cursor.execute('UPDATE shardT SET valid_idx = ? WHERE shard_id = ?', (curr_idx, shard_id))
         cursor.close()
@@ -88,3 +88,8 @@ class db_helper:
         cursor.close()
         # self.conn.close()
         return data
+
+    def del_server(self,server_id):
+        cursor=self.conn.cursor()
+        cursor.execute('DELETE FROM mapT WHERE server_id = ?',(server_id,))
+        self.conn.commit()
