@@ -4,7 +4,7 @@ import sqlite3
 class db_helper:
     def __init__(self, db_name):
         self.db_name = db_name
-        self.conn = sqlite3.connect(self.db_name)
+        self.conn = sqlite3.connect(self.db_name,check_same_thread=False)
         self.conn.isolation_level = None
         self.cursor = self.conn.cursor()
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS ShardT (
@@ -30,7 +30,7 @@ class db_helper:
         return self.conn
 
     def add_shard(self, shard):
-        self.conn = sqlite3.connect(self.db_name)
+        # self.conn = sqlite3.connect(self.db_name,check_same_thread=False)
         cursor = self.conn.cursor()
         cursor.execute('INSERT INTO shardT (stud_id_low, shard_id, shard_size, valid_idx) VALUES (?,?,?,?)',
                        (shard['Stud_id_low'], shard['Shard_id'], shard['Shard_size'], shard['curr_idx']))
@@ -39,7 +39,7 @@ class db_helper:
         # self.conn.close()
 
     def add_server(self, shard, server):
-        self.conn = sqlite3.connect(self.db_name)
+        # self.conn = sqlite3.connect(self.db_name,check_same_thread=False)
         cursor = self.conn.cursor()
         cursor.execute('INSERT INTO mapT (shard_id , server_id) VALUES (?,?)', (shard, server))
         self.conn.commit()
@@ -47,7 +47,7 @@ class db_helper:
         # self.conn.close()
 
     def get_shard_data(self):
-        self.conn = sqlite3.connect(self.db_name)
+        # self.conn = sqlite3.connect(self.db_name,check_same_thread=False)
         cursor = self.conn.cursor()
         cursor.execute('SELECT * FROM shardT')
         data = cursor.fetchall()
@@ -84,6 +84,14 @@ class db_helper:
     def get_servers_for_shard(self, shard_id):
         cursor = self.conn.cursor()
         cursor.execute('SELECT server_id FROM mapT WHERE shard_id = ?', (shard_id,))
+        data = cursor.fetchall()
+        cursor.close()
+        # self.conn.close()
+        return data
+
+    def get_shard_for_server(self, server_id):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT shard_id FROM mapT WHERE server_id = ?', (server_id,))
         data = cursor.fetchall()
         cursor.close()
         # self.conn.close()

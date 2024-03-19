@@ -5,7 +5,7 @@ import random
 import re
 import time
 from contextlib import asynccontextmanager
-
+import threading
 import aiohttp
 import uvicorn
 from fastapi import FastAPI, Body, status, Request
@@ -16,6 +16,7 @@ from lb_db_helper import db_helper
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print(threading.get_ident())
     yield
     stop_heartbeat()
 
@@ -41,23 +42,23 @@ app.db_config = {
 }
 app.db_schema = {}
 
-import threading
-
 
 class Heartbeat(threading.Thread):
-    def __init__(self,server_list):
+    def __init__(self, server_list):
         super(Heartbeat, self).__init__()
         self.fails = {}
         # for arg in args:
         self.server_list = server_list
-            # break
+        # break
         for server in self.server_list:
             self.fails[server] = 0
             print(f"server list {self.server_list}")
-    async def make_request(self,server_id):
+
+    async def make_request(self, server_id):
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"http://{str(app.server_id_name_map[str(server_id)])}:5000/heartbeat", timeout=2) as response:
+                async with session.post(f"http://{str(app.server_id_name_map[str(server_id)])}:5000/heartbeat",
+                                        timeout=2) as response:
                     content = await response.read()
                     if response.status != 404:
                         # ret_obj = await response.json(content_type="application/json")
@@ -67,6 +68,7 @@ class Heartbeat(threading.Thread):
                         return {"message": f"<Error> '/heatbeat’ endpoint does not exist in server replicas",
                                 "status": "failure"}, 400
         except Exception as e:
+            self.fails[server_id] += 1
             print(str(e))
             # acquire the lock for read and write for the shards in this server
             cmd = os.popen(f"sudo docker run --rm --name {app.server_id_name_map[server_id]} "
@@ -76,21 +78,77 @@ class Heartbeat(threading.Thread):
                            f"-p {5001 + int(server_id)}:5000 "
                            f"-d server").read()
             time.sleep(1)
-            if len(cmd)==0:
+            if len(cmd) == 0:
                 print(f"Heartbeat failed to respawn {app.server_id_name_map[server_id]} trying again")
                 self.fails[server_id] += 1
             else:
                 # release the lock after copying the data from shards to the server
-                print(f"{app.server_id_name_map[server_id]} respawned using heartbeat after {self.fails[server_id]} tries")
+                print(
+                    f"{app.server_id_name_map[server_id]} respawned using heartbeat after {self.fails[server_id]} tries")
+                await self.reconfig_server(server_id)
+                self.fails[server_id] = 0
 
-    def run(self,*args,**kwargs):
+    async def shard_data_for_shard(self, shard):
+        server_list_for_trying_db = app.database_helper.get_servers_for_shard(shard)
+        server_to_get_from = server_list_for_trying_db[0][0]
+        server_list_for_trying=[]
+        for tuplee in server_list_for_trying_db:
+            server_list_for_trying.append(tuplee[0])
+        for server_to_try in server_list_for_trying:
+            if self.fails[server_to_try] == 0:
+                server_to_get_from = server_to_try
+                break
+        payload = {"shards": [shard]}
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://{str(app.server_id_name_map[str(server_to_get_from)])}:5000/copy",
+                                    json=payload,
+                                    timeout=2) as response:
+                content = await response.read()
+                print(content)
+                ret_obj = await response.json(content_type="application/json")
+                return ret_obj[shard]
+
+    async def reconfig_server(self, server_id):
+        payload = {}
+        shards = app.database_helper.get_shard_for_server(server_id)
+        payload["schema"] = app.db_schema
+        shard_list=[]
+        for tuplee in shards:
+            shard_list.append(tuplee[0])
+        payload["shards"] = list(shard_list)
+        print(payload)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"http://{str(app.server_id_name_map[str(server_id)])}:5000/config", json=payload,
+                                    timeout=2) as response:
+                content = await response.read()
+                print(content)
+                if response.status != 404:
+                    ret_obj = await response.json(content_type="application/json")
+                    print(ret_obj)
+                else:
+                    print(
+                        {"message": f"<Error> '/config’ endpoint in heartbeat thread does not exist in server replicas",
+                         "status": "failure"}, 400)
+        for shard in shard_list:
+            data = await self.shard_data_for_shard(shard)
+            write_payload = {"shard": shard, "curr_idx": 0, "try_again": 0, "data": data}
+            print(write_payload)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"http://{str(app.server_id_name_map[str(server_id)])}:5000/write",
+                                        json=write_payload, timeout=2) as response:
+                    content = await response.read()
+                    print(content)
+                    ret_obj = await response.json(content_type="application/json")
+                    print("write heartbeat", ret_obj)
+
+    def run(self, *args, **kwargs):
 
         print("Heartbeat running!!")
         while True:
             for server in list(app.server_id_name_map.keys()):
                 asyncio.run(self.make_request(server))
             for server in list(self.fails.keys()):
-                if self.fails[server]>5:
+                if self.fails[server] > 5:
                     del app.server_id_name_map[server]
                     for shard in app.shard_consistent_hashing.keys():
                         if server in app.shard_consistent_hashing[shard].get_servers():
@@ -99,7 +157,6 @@ class Heartbeat(threading.Thread):
             time.sleep(1)
 
     # def copy_data(self,server_name):
-
 
 
 def get_smallest_unoccupied_server_id():
@@ -144,8 +201,8 @@ def get_shards_for_data_write(data):
         shard_index = int(data_entry["Stud_id"]) // int(shard_data[0][2])
         shard_to_map = shard_data[shard_index][1]
         if shard_to_map not in shard_to_make_req.keys():
-            shard_to_make_req[shard_to_map]={}
-            shard_to_make_req[shard_to_map]["data"]=[]
+            shard_to_make_req[shard_to_map] = {}
+            shard_to_make_req[shard_to_map]["data"] = []
             shard_to_make_req[shard_to_map]["curr_idx"] = shard_data[shard_index][3]
         shard_to_make_req[shard_to_map]["data"].append(data_entry)
     return shard_to_make_req
@@ -186,7 +243,7 @@ async def make_request(server_name, payload, path, method):
                     # print(content)
                     if response.status != 404:
                         return_obj = await response.json(content_type="application/json")
-                        print("return obj", return_obj)
+                        print("return obj", return_obj, server_name)
                         return return_obj
                     else:
                         return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
@@ -225,7 +282,7 @@ async def make_request(server_name, payload, path, method):
                         return {"message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
                                 "status": "failure"}, 400
     except Exception as e:
-        print(f"Exception {str(e)} in make request in {method} method of {path}")
+        print(f"Exception {str(e)} in make request in {method} method of {path} for {server_name}")
 
 
 # except Exception as e:
@@ -234,8 +291,9 @@ async def make_request(server_name, payload, path, method):
 
 
 @app.post('/init', status_code=status.HTTP_200_OK)
-async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
-               servers: dict = Body(...)):
+def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
+         servers: dict = Body(...)):
+    print(threading.get_ident())
     # store schema of the shards
     app.db_schema = schema
     # get data from the request fastAPI
@@ -265,13 +323,16 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     for server in app.server_id_name_map.keys():
         for shard in servers[app.server_id_name_map[server]]:
             app.database_helper.add_server(shard, server)
-    await spawn_new_servers(app.server_id_name_map)
+    asyncio.run(spawn_new_servers(app.server_id_name_map))
 
     # hit the '/config' endpoint of the servers to initialize the shards using aiohttp
-    for sname in servers.keys():
-        print(sname)
-        payload = {"shards": servers[sname], "schema": schema}
-        await asyncio.gather(asyncio.create_task(make_request(sname, payload, "config", "POST")))
+    async def init_servers():
+        for sname in servers.keys():
+            print(sname)
+            payload = {"shards": servers[sname], "schema": schema}
+            await make_request(sname, payload, "config", "POST")
+
+    asyncio.run(init_servers())
     # thread = threading.Thread(target=asyncio.run,args=[list(app.server_id_name_map.keys())])
     # thread.start()
     thread_obj = Heartbeat(list(app.server_id_name_map.keys()))
@@ -506,7 +567,7 @@ async def remove_replicas(n: int = Body(...), hostnames: list[str] = Body(...)):
 
 @app.post('/writee')
 async def write_data(data: dict = Body(...)):
-    data1=data["data"]
+    data1 = data["data"]
     # print(data)
     shard_data_map = get_shards_for_data_write(data1)
     print(shard_data_map)
@@ -519,7 +580,7 @@ async def write_data(data: dict = Body(...)):
                 payload["data"].append(sdata)
             payload["curr_idx"] = int(shard_data_map[shard]["curr_idx"])
             # payload["try_again"] = 1
-            print(payload,"to server: ",server)
+            print(payload, "to server: ", server)
             try:
                 # payload = {"shard": "sh1", "data": [{"Stud_id": 1, "Stud_name": "ABC", "Stud_marks": "95"}], "curr_idx": 0}
                 response = await make_request(app.server_id_name_map[server], payload, "write", "POST")
@@ -532,11 +593,13 @@ async def write_data(data: dict = Body(...)):
             except Exception as e:
                 print("exception in write", str(e))
                 time.sleep(1)
-        app.database_helper.update_curr_idx(shard,shard_data_map[shard]["curr_idx"] + len(shard_data_map[shard]["data"]))
+        app.database_helper.update_curr_idx(shard,
+                                            shard_data_map[shard]["curr_idx"] + len(shard_data_map[shard]["data"]))
     return {
-        "message":f"{len(data1)} Data entries added",
-        "status":"success"
+        "message": f"{len(data1)} Data entries added",
+        "status": "success"
     }
+
 
 ###### Implement locking
 @app.put('/update')
