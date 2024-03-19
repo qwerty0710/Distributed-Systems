@@ -458,48 +458,53 @@ async def read_data(Stud_id: dict = Body(...)):
 
 
 @app.delete('/rm')
-async def remove_replicas(request: Request):
-    global server_replicas
-    request_data = json.loads(await request.body())[0]
-    num_replicas_to_remove = request_data["n"]
-    # preferred hostnames to remove
-    hostnames = request_data["hostnames"]
-    # check if the length of the hostname list is less than or equal to the number of replicas to remove
-    if len(hostnames) > num_replicas_to_remove:
+async def remove_replicas(n: int = Body(...), hostnames: list[str] = Body(...)):
+    # check if the hostnames are valid
+    names = []
+    for shard, server_id in app.database_helper.get_server_data():
+        names.append(app.server_id_name_map[server_id])
+
+    # check if length of hostnames is less than or equal to n
+    if len(hostnames) > n:
         response = {
             "message": "<Error> Length of hostname list is more than newly added instances",
             "status": "failure"
         }
-        return response, status.HTTP_400_BAD_REQUEST
-    names = []
-    # remove servers one by one and if n>hostname list then remove random servers from the list of servers
-    for i in range(num_replicas_to_remove):
-        del_key = ""
-        if i < len(hostnames):
-            # remove the server from the list of servers
-            for key in server_replicas.servers.keys():
-                if server_replicas.servers[key]["name"] == hostnames[i]:
-                    del_key = key
+        return response
+
+    # check if the hostnames are valid
+    for hostname in hostnames:
+        if hostname not in names:
+            response = {
+                "message": f"<Error> '{hostname}’ is not a valid server. No server removed",
+                "status": "failure"
+            }
+            return response
+
+    # if n > length of hostnames then remove random servers by inserting names into hostnames
+    if len(hostnames) < n:
+        for svr in names:
+            if svr not in hostnames:
+                hostnames.append(svr)
+                if len(hostnames) == n:
                     break
-        else:
-            # remove random server from the list of servers
-            server_key = random.choice(list(server_replicas.servers.keys()))
-            del_key = server_key
-        os.system(
-            f"sudo docker stop {server_replicas.servers[del_key]['name']} ")
-        server_replicas.server_del(del_key)
-    names = check_heartbeat()
+
+    # remove the servers from all places
+    for hostname in hostnames:
+        server_id = app.server_id_name_map[hostname]
+        del app.server_id_name_map[server_id]
+        for shard in app.shard_consistent_hashing.keys():
+            app.shard_consistent_hashing[shard].server_del(server_id)
+        app.database_helper.del_server(str(server_id))
+
     response = {
-        "message": {
-            "N": len(names),
-            "replicas": names
-        },
+        "N": n,
+        "servers": hostnames,
         "status": "successful"
     }
     return response
 
-
-@app.post('/write')
+@app.post('/writee')
 async def write_data(data: dict = Body(...)):
     data1=data["data"]
     # print(data)
@@ -522,7 +527,7 @@ async def write_data(data: dict = Body(...)):
                     print("done deal!!!")
                     # try_again.remove(server)
                 else:
-                    print("heyyyyyyyyyyyy")
+                    # print("heyyyyyyyyyyyy")
                     raise Exception("curr_idx less than sent curr_idx + data length")
             except Exception as e:
                 print("exception in write", str(e))
