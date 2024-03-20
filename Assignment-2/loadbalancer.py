@@ -9,14 +9,14 @@ import threading
 import aiohttp
 import uvicorn
 from fastapi import FastAPI, Body, status, Request
-
 from ConsistentHashing import Consistent_Hashing
 from lb_db_helper import db_helper
 
 
+# 138489339778624
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(threading.get_ident())
+    print(threading.current_thread())
     yield
     stop_heartbeat()
 
@@ -41,6 +41,7 @@ app.db_config = {
     "port": "3306"
 }
 app.db_schema = {}
+app.shard_locks = {}
 
 
 class Heartbeat(threading.Thread):
@@ -91,7 +92,7 @@ class Heartbeat(threading.Thread):
     async def shard_data_for_shard(self, shard):
         server_list_for_trying_db = app.database_helper.get_servers_for_shard(shard)
         server_to_get_from = server_list_for_trying_db[0][0]
-        server_list_for_trying=[]
+        server_list_for_trying = []
         for tuplee in server_list_for_trying_db:
             server_list_for_trying.append(tuplee[0])
         for server_to_try in server_list_for_trying:
@@ -101,8 +102,7 @@ class Heartbeat(threading.Thread):
         payload = {"shards": [shard]}
         async with aiohttp.ClientSession() as session:
             async with session.get(f"http://{str(app.server_id_name_map[str(server_to_get_from)])}:5000/copy",
-                                    json=payload,
-                                    timeout=2) as response:
+                                   json=payload, timeout=2) as response:
                 content = await response.read()
                 ret_obj = await response.json(content_type="application/json")
                 print(ret_obj)
@@ -112,7 +112,7 @@ class Heartbeat(threading.Thread):
         payload = {}
         shards = app.database_helper.get_shard_for_server(server_id)
         payload["schema"] = app.db_schema
-        shard_list=[]
+        shard_list = []
         for tuplee in shards:
             shard_list.append(tuplee[0])
         payload["shards"] = list(shard_list)
@@ -150,6 +150,7 @@ class Heartbeat(threading.Thread):
             for server in list(self.fails.keys()):
                 if self.fails[server] > 5:
                     del app.server_id_name_map[server]
+                    # shard_consistent_hashing changing
                     for shard in app.shard_consistent_hashing.keys():
                         if server in app.shard_consistent_hashing[shard].get_servers():
                             app.shard_consistent_hashing[shard].server_del(server)
@@ -237,8 +238,7 @@ async def make_request(server_name, payload, path, method):
     try:
         async with aiohttp.ClientSession() as session:
             if method == "POST":
-                async with session.post(f"http://{server_name}:5000/{path}", json=payload,
-                                        timeout=2) as response:
+                async with session.post(f"http://{server_name}:5000/{path}", json=payload, timeout=2) as response:
                     content = await response.read()
                     # print(content)
                     if response.status != 404:
@@ -291,9 +291,9 @@ async def make_request(server_name, payload, path, method):
 
 
 @app.post('/init', status_code=status.HTTP_200_OK)
-def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
-         servers: dict = Body(...)):
-    print(threading.get_ident())
+async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body(...),
+               servers: dict = Body(...)):
+    print(threading.current_thread())
     # store schema of the shards
     app.db_schema = schema
     # get data from the request fastAPI
@@ -315,6 +315,7 @@ def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body
         for server_id in shard_to_server[shard]:
             server_config.append({"server_name": app.server_id_name_map[str(server_id)], "server_id": server_id})
         print(server_config, "server configgggggg", shard)
+        # shard_consistent_hashing  changed
         app.shard_consistent_hashing[shard] = Consistent_Hashing(app.m, app.reqHash, app.serverHash, server_config)
     print(str(app.shard_consistent_hashing))
     for shard in shards:
@@ -323,16 +324,14 @@ def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body
     for server in app.server_id_name_map.keys():
         for shard in servers[app.server_id_name_map[server]]:
             app.database_helper.add_server(shard, server)
-    asyncio.run(spawn_new_servers(app.server_id_name_map))
+    await spawn_new_servers(app.server_id_name_map)
 
     # hit the '/config' endpoint of the servers to initialize the shards using aiohttp
-    async def init_servers():
-        for sname in servers.keys():
-            print(sname)
-            payload = {"shards": servers[sname], "schema": schema}
-            await make_request(sname, payload, "config", "POST")
 
-    asyncio.run(init_servers())
+    for sname in servers.keys():
+        print(sname)
+        payload = {"shards": servers[sname], "schema": schema}
+        await make_request(sname, payload, "config", "POST")
     # thread = threading.Thread(target=asyncio.run,args=[list(app.server_id_name_map.keys())])
     # thread.start()
     thread_obj = Heartbeat(list(app.server_id_name_map.keys()))
@@ -423,6 +422,7 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
     for server_name in servers.keys():
         for shard in servers[server_name]:
             all_shards_req.append(shard)
+    # shard_consistent_hashing
     for shard in all_shards_req:
         if shard in app.shard_consistent_hashing.keys():  # if the shard is old shard (consustent hashing is not yet updated)
             servers_containing_shard = []
@@ -566,6 +566,7 @@ async def remove_replicas(n: int = Body(...), hostnames: list[str] = Body(...)):
         "status": "successful"
     }
     return response
+
 
 @app.post('/writee')
 async def write_data(data: dict = Body(...)):

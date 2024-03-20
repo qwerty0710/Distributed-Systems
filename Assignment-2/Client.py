@@ -20,7 +20,7 @@ async def send_request_home(url):
         #     "ip": "localhost",
         #     "port": 5005
         # }
-        async with session.get(url) as response:
+        async with session.get(url,timeout=3) as response:
             return await response.json(content_type="application/json")
 
 
@@ -85,12 +85,12 @@ async def main():
     # tasks.append(task)
     # results = await asyncio.gather(*tasks)
     # print(results)
-    for i in range(10000):
-        task = asyncio.create_task(send_request_home("http://0.0.0.0:5000/status"))
+    for i in range(1000):
+        task = asyncio.create_task(send_request_home("http://localhost:5000/"))
         tasks = []
         tasks.append(task)
         results = await asyncio.gather(task)
-        print(results)
+        #print(results)
 
 
 if __name__ == '__main__':
