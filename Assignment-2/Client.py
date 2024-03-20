@@ -85,12 +85,15 @@ async def main():
     # tasks.append(task)
     # results = await asyncio.gather(*tasks)
     # print(results)
-    task = asyncio.create_task(send_request_add("http://0.0.0.0:5000/heartbeat"))
-    tasks = []
-    tasks.append(task)
-    results = await asyncio.gather(task)
-    print(results)
+    for i in range(10000):
+        task = asyncio.create_task(send_request_home("http://0.0.0.0:5000/status"))
+        tasks = []
+        tasks.append(task)
+        results = await asyncio.gather(task)
+        print(results)
 
 
 if __name__ == '__main__':
     asyncio.run(main())
+
+

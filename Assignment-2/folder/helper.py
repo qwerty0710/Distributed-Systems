@@ -93,12 +93,13 @@ class StudentDatabase:
         cursor.execute(f"SELECT * FROM {table}")
         listofstu = cursor.fetchall()  # Fetch all rows
         message = []
-        data = {}
-        for i in listofstu:
-            data['Stud_id'] = i[0]
-            data['Stud_name'] = i[1]
-            data['Stud_marks'] = i[2]
-            message.append(str(data))
+        for row in listofstu:
+            data = {
+                'Stud_id': row[0],
+                'Stud_name': row[1],
+                'Stud_marks': row[2]
+            }
+            message.append(data)
         cursor.close()
         return message
 
@@ -116,12 +117,13 @@ class StudentDatabase:
         cursor.execute(f"SELECT * FROM {table} WHERE Stud_id BETWEEN {low} AND {high}")
         listofstu = cursor.fetchall()  # Fetch all rows
         message = []
-        data = {}
-        for i in listofstu:
-            data['Stud_id'] = i[0]
-            data['Stud_name'] = i[1]
-            data['Stud_marks'] = i[2]
-            message.append(str(data))
+        for row in listofstu:
+            data = {
+                'Stud_id': row[0],
+                'Stud_name': row[1],
+                'Stud_marks': row[2]
+            }
+            message.append(data)
         cursor.close()
         return message
 

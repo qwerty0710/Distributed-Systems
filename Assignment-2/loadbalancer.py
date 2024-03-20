@@ -77,7 +77,7 @@ class Heartbeat(threading.Thread):
                            f"-e SERVER_ID={int(server_id)} "
                            f"-p {5001 + int(server_id)}:5000 "
                            f"-d server").read()
-            time.sleep(1)
+            await asyncio.sleep(1)
             if len(cmd) == 0:
                 print(f"Heartbeat failed to respawn {app.server_id_name_map[server_id]} trying again")
                 self.fails[server_id] += 1
@@ -104,8 +104,8 @@ class Heartbeat(threading.Thread):
                                     json=payload,
                                     timeout=2) as response:
                 content = await response.read()
-                print(content)
                 ret_obj = await response.json(content_type="application/json")
+                print(ret_obj)
                 return ret_obj[shard]
 
     async def reconfig_server(self, server_id):
@@ -121,7 +121,7 @@ class Heartbeat(threading.Thread):
             async with session.post(f"http://{str(app.server_id_name_map[str(server_id)])}:5000/config", json=payload,
                                     timeout=2) as response:
                 content = await response.read()
-                print(content)
+                # print(content)
                 if response.status != 404:
                     ret_obj = await response.json(content_type="application/json")
                     print(ret_obj)
@@ -347,6 +347,7 @@ def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] = Body
 @app.get('/status')
 async def get_status():
     shard_tuples = app.database_helper.get_shard_data()
+    print("served at time", time.time())
     shards = []
     for stud_id_low, shard_id, shard_size, curr_idx in shard_tuples:
         shard_dict = {"stud_id_low": stud_id_low, "shard_id": shard_id, "shard_size": shard_size}
@@ -508,6 +509,7 @@ async def read_data(Stud_id: dict = Body(...)):
         server_name = app.server_id_name_map[server_id]
         payload = {"shard": shard["shard"], "Stud_id": shard["range"]}
         shard_read_data = await make_request(server_name, payload, "read", "POST")
+        print(shard_read_data)
         for data_element in shard_read_data["data"]:
             read_output.append(data_element)
     response = {

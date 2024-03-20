@@ -78,26 +78,28 @@ def read_data():
 
 @app.route('/write', methods=['POST'])
 def write_data():
-    payloadd = request.json
-    student_db = db.StudentDatabase()
-    conn = student_db.create_connection()
-    if payloadd.get("try_again") == 1:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ? ORDER BY ROWID",(payloadd.get("shard")))
-        entries_sorted= cursor.fetchall()
-        if payloadd.get("curr_idx")<len(entries_sorted):
-            for i in range(payloadd["curr_idx"]+1,len(entries_sorted)):
-                cursor.execute(f"DELETE FROM ? WHERE Stud_id=?", (payloadd.get("curr_idx"),entries_sorted[i],))
-                cursor.commit()
-    message, curr_idx = student_db.write(conn, payloadd)
-    # curr_idxs[payload['shard']]=curr_idx
-    conn.close()
-    return jsonify({
-        "message": message,  # Provide the actual data read from the database
-        "curr_idx": curr_idx,
-        "status": "success"
-    }), 200
-
+    try:
+        payloadd = request.json
+        student_db = db.StudentDatabase()
+        conn = student_db.create_connection()
+        if payloadd.get("try_again") == 1:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM ? ORDER BY ROWID",(payloadd.get("shard")))
+            entries_sorted= cursor.fetchall()
+            if payloadd.get("curr_idx")<len(entries_sorted):
+                for i in range(payloadd["curr_idx"]+1,len(entries_sorted)):
+                    cursor.execute(f"DELETE FROM ? WHERE Stud_id=?", (payloadd.get("curr_idx"),entries_sorted[i],))
+                    cursor.commit()
+        message, curr_idx = student_db.write(conn, payloadd)
+        # curr_idxs[payload['shard']]=curr_idx
+        conn.close()
+        return jsonify({
+            "message": message,  # Provide the actual data read from the database
+            "curr_idx": curr_idx,
+            "status": "success"
+        }), 200
+    except Exception as e:
+        raise Exception(e)
 
 @app.route('/update', methods=['PUT'])
 def update_data():
