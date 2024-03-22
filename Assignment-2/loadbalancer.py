@@ -11,9 +11,9 @@ import uvicorn
 from fastapi import FastAPI, Body, status, Request
 from ConsistentHashing import Consistent_Hashing
 from lb_db_helper import db_helper
+import redis
 
 
-# 138489339778624
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print(threading.current_thread())
@@ -22,7 +22,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.locks = {}
 # Number of slots in the ring
 # m = int(os.getenv("m"))
 app.m = 512
@@ -41,7 +40,9 @@ app.db_config = {
     "port": "3306"
 }
 app.db_schema = {}
-app.shard_locks = {}
+app.shard_locks: dict[str, asyncio.Lock] = {}
+app.shard_consistent_hashing_lock = asyncio.Lock()
+app.server_id_name_map_lock = asyncio.Lock()
 
 
 class Heartbeat(threading.Thread):
@@ -52,7 +53,7 @@ class Heartbeat(threading.Thread):
         self.server_list = server_list
         # break
         for server in self.server_list:
-            self.fails[server] = 0
+            self.fails[str(server)] = 0
             print(f"server list {self.server_list}")
 
     async def make_request(self, server_id):
@@ -81,7 +82,7 @@ class Heartbeat(threading.Thread):
             await asyncio.sleep(1)
             if len(cmd) == 0:
                 print(f"Heartbeat failed to respawn {app.server_id_name_map[server_id]} trying again")
-                self.fails[server_id] += 1
+                self.fails[str(server_id)] += 1
             else:
                 # release the lock after copying the data from shards to the server
                 print(
@@ -104,6 +105,7 @@ class Heartbeat(threading.Thread):
             async with session.get(f"http://{str(app.server_id_name_map[str(server_to_get_from)])}:5000/copy",
                                    json=payload, timeout=2) as response:
                 content = await response.read()
+                print(content)
                 ret_obj = await response.json(content_type="application/json")
                 print(ret_obj)
                 return ret_obj[shard]
@@ -135,7 +137,8 @@ class Heartbeat(threading.Thread):
             print(write_payload)
             async with aiohttp.ClientSession() as session:
                 async with session.post(f"http://{str(app.server_id_name_map[str(server_id)])}:5000/write",
-                                        json=write_payload, timeout=2) as response:
+                                        json=write_payload,
+                                        timeout=2) as response:
                     content = await response.read()
                     print(content)
                     ret_obj = await response.json(content_type="application/json")
@@ -146,31 +149,41 @@ class Heartbeat(threading.Thread):
         print("Heartbeat running!!")
         while True:
             for server in list(app.server_id_name_map.keys()):
+                if server not in self.fails.keys():
+                    self.fails[server] = 0
                 asyncio.run(self.make_request(server))
             for server in list(self.fails.keys()):
                 if self.fails[server] > 5:
+                    asyncio.run(app.server_id_name_map_lock.acquire())
                     del app.server_id_name_map[server]
+                    app.server_id_name_map_lock.release()
                     # shard_consistent_hashing changing
+                    asyncio.run(app.shard_consistent_hashing_lock.acquire())
                     for shard in app.shard_consistent_hashing.keys():
                         if server in app.shard_consistent_hashing[shard].get_servers():
                             app.shard_consistent_hashing[shard].server_del(server)
+                    app.shard_consistent_hashing_lock.release()
                     app.database_helper.del_server(str(server))
             time.sleep(1)
 
     # def copy_data(self,server_name):
 
 
+# variable locks done
 def get_smallest_unoccupied_server_id():
     occupied_ids = []
+    # await app.server_id_name_map_lock.acquire()
     for server_id in app.server_id_name_map.keys():
         occupied_ids.append(server_id)
     occupied_ids = list(map(int, occupied_ids))
     smallest_id = 0
     while smallest_id in occupied_ids:
         smallest_id = smallest_id + 1
+    # app.server_id_name_map_lock.release()
     return smallest_id
 
 
+# variable locks done
 def get_shards_for_stud_id_range(low, high):
     shard_data = sorted(app.database_helper.get_shard_data(), key=lambda x: x[0])
     cont = 1
@@ -326,6 +339,8 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
             app.database_helper.add_server(shard, server)
     await spawn_new_servers(app.server_id_name_map)
 
+    for shard in shards:
+        app.shard_locks[shard["Shard_id"]] = asyncio.Lock()
     # hit the '/config' endpoint of the servers to initialize the shards using aiohttp
 
     for sname in servers.keys():
@@ -343,6 +358,7 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     return response
 
 
+# variable locks done
 @app.get('/status')
 async def get_status():
     shard_tuples = app.database_helper.get_shard_data()
@@ -389,19 +405,22 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
         return response
     names = []
     mapT_data = app.database_helper.get_server_data()
+    old_shards = set()
+    for shard, server in mapT_data:
+        old_shards.add(shard)
     print(mapT_data)
     for shard, server_id in mapT_data:
-        names.append(app.server_id_name_map[server_id])
+        if not app.server_id_name_map_lock.locked():
+            names.append(app.server_id_name_map[server_id])
     # adding the new data in database
     for shard in new_shards:
         shard["curr_idx"] = 0
         app.database_helper.add_shard(shard)
-    for server in servers:
-        for shard_ in server:
-            app.database_helper.add_server(shard_, server)
 
     # add servers one by one and if n>hostname list then add random servers by generating server id and hostnames
     # names = check_heartbeat()
+    await app.server_id_name_map_lock.acquire()
+    print("got id name map lock 1")
     new_server_names = []
     for hostname in hostnames:
         server_id = get_smallest_unoccupied_server_id()
@@ -413,59 +432,79 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
             servers[name] = temp_shard_list
         # spawn new server
         await spawn_new_servers({str(server_id): name})
-        app.server_id_name_map[server_id] = name  ###
+        print(f"spawned server with server id {server_id}")
+        config_payload = {"schema":app.db_schema, "shards":servers[name]}
+        await make_request(name,config_payload,"config","POST")
+        app.server_id_name_map[str(server_id)] = name
         names.append(name)
         new_server_names.append(name)
-
+        for shard_ in servers[name]:
+            app.database_helper.add_server(shard_, server_id)
+    app.server_id_name_map_lock.release()
+    print("release id name map lock 1")
     # add new server to the old shards consistent hashing
     all_shards_req = []  # all shards of this request old and new shards
     for server_name in servers.keys():
         for shard in servers[server_name]:
             all_shards_req.append(shard)
     # shard_consistent_hashing
+    await app.shard_consistent_hashing_lock.acquire()
     for shard in all_shards_req:
-        if shard in app.shard_consistent_hashing.keys():  # if the shard is old shard (consustent hashing is not yet updated)
+        if shard in old_shards:  # if the shard is old shard
             servers_containing_shard = []
             for server_name in servers.keys():
                 if shard in servers[server_name]:
                     servers_containing_shard.append(server_name)
             server_id_list = []
+            await app.server_id_name_map_lock.acquire()
             for server_id in app.server_id_name_map.keys():
                 if app.server_id_name_map[server_id] in servers_containing_shard:
                     server_id_list.append(server_id)
+            app.server_id_name_map_lock.release()
             for new_server_id in server_id_list:
-                app.shard_consistent_hashing[shard].add_server(new_server_id, app.server_id_name_map[new_server_id])
+                if not app.server_id_name_map_lock.locked():
+                    app.shard_consistent_hashing[shard].add_server(new_server_id,
+                                                                   app.server_id_name_map[new_server_id])
+    app.shard_consistent_hashing_lock.release()
+
+    shard_server_list_mapping = {}
+    for shard_mapt, server_mapt in mapT_data:
+        if shard_mapt in shard_server_list_mapping.keys():
+            shard_server_list_mapping[shard_mapt].append(app.server_id_name_map[server_mapt])
+        else:
+            shard_server_list_mapping[shard_mapt] = [app.server_id_name_map[server_mapt]]
+
 
     # bring the data stored in old shards to the new server
     for shard in all_shards_req:
-        if shard in app.shard_consistent_hashing.keys():
+        if shard in old_shards:
             new_server_names = []
-            shard_stored_data = {}
+            shard_stored_data = []
             for server_name in servers.keys():
                 if shard in servers[server_name]:
                     new_server_names.append(server_name)
-            for shard_server_name in app.shard_consistent_hashing[shard].get_servers().values():
+            for shard_server_name in shard_server_list_mapping[shard]:
                 if shard_server_name not in new_server_names:
                     # shard_to_get_data = [shard]
                     # print(shard_to_get_data)
                     # payload = {"shards": ["sh3"]}
-                    payload = {}
-                    payload["shards"] = []
-                    payload["shards"].append(str(shard))
+                    payload = {"shards": [str(shard)]}
+                    # payload["shards"].append()
                     print(payload)
                     # print(str(app.shard_consistent_hashing["sh3"].servers))
-                    req_data = await make_request(shard_server_name["name"], payload, "copy", "GET")
-                    shard_stored_data = {}
-                    for data_tuple in req_data[shard]:
-                        print(data_tuple, "--------")
-                        for i, data_element in enumerate(data_tuple):
-                            shard_stored_data[app.db_schema["columns"][i]] = data_element
+                    print(shard_server_name)
+                    req_data = await make_request(shard_server_name, payload, "copy", "GET")
+                    shard_stored_data = req_data[shard]
+                    # for data_tuple in req_data[shard]:
+                    #     print(data_tuple, "--------")
+                    #     for i, data_element in enumerate(data_tuple):
+                    #         shard_stored_data[app.db_schema["columns"][i]] = data_element
                     break
             for new_server in new_server_names:
                 request_payload = {
                     "shard": shard,
                     "curr_idx": 0,
-                    "data": shard_stored_data[shard]
+                    "data": shard_stored_data
                 }
                 await make_request(new_server, request_payload, "write", "POST")
 
@@ -475,17 +514,22 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
         for server_name in servers.keys():
             if shard["Shard_id"] in servers[server_name]:
                 servers_containing_shard.append(server_name)
-        server_id_list = []
+        server_list = []
+        await app.server_id_name_map_lock.acquire()
+        await app.shard_consistent_hashing_lock.acquire()
         for server_id in app.server_id_name_map.keys():
             if app.server_id_name_map[server_id] in servers_containing_shard:
-                server_id_list.append(server_id)
+                server_list.append({"server_name": app.server_id_name_map[server_id], "server_id": server_id})
         app.shard_consistent_hashing[shard["Shard_id"]] = Consistent_Hashing(app.m, app.reqHash, app.serverHash,
-                                                                             server_id_list)
-
+                                                                             server_list)
+        app.shard_consistent_hashing_lock.release()
+        app.server_id_name_map_lock.release()
+    for new_shard in new_shards:
+        app.shard_locks[new_shard["Shard_id"]] = asyncio.Lock()
     message = "Add "
     for name in new_server_names:
         message = message + name + ", "
-    message.removesuffix(", ")
+    # message.removesuffix(", ")
     response = {
         "N": f'{len(app.server_id_name_map)}',
         "message": message,
@@ -508,6 +552,8 @@ async def read_data(Stud_id: dict = Body(...)):
         server_id = app.shard_consistent_hashing[shard["shard"]].get_req_server(req_id)
         server_name = app.server_id_name_map[server_id]
         payload = {"shard": shard["shard"], "Stud_id": shard["range"]}
+        await app.shard_locks[shard["shard"]].acquire()
+        app.shard_locks[shard["shard"]].release()
         shard_read_data = await make_request(server_name, payload, "read", "POST")
         print(shard_read_data)
         for data_element in shard_read_data["data"]:
@@ -568,7 +614,7 @@ async def remove_replicas(n: int = Body(...), hostnames: list[str] = Body(...)):
     return response
 
 
-@app.post('/writee')
+@app.post('/write')
 async def write_data(data: dict = Body(...)):
     data1 = data["data"]
     # print(data)
