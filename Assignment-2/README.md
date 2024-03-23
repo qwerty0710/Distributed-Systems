@@ -10,7 +10,7 @@ sudo make build
 ```bash
 sudo make lb
 ```
-## Run the following command to start the 3 initial server containers
+## Run the following command to start the server containers
 ```bash
 sudo make server
 ```
