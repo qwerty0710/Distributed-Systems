@@ -21,7 +21,10 @@ python3 request.py
 ## A-4 : Finally, check all the endpoints and ensure their correctness. Manually drop a server container and show that the loadbalancer spawns a new container and copies the shard entries from other replicas
 The endpoints are working fine and correctly.We manually removed a server container. The load balancer spawns a new container and copies the shard entries from other replicas. The images below depict this.
 <br />
+<br />
 ![Alt Text](a4_1.jpg "Title")
 <br />
+<br />
+
 ![Alt Text](a4_2.jpg "Title")
 <br />
