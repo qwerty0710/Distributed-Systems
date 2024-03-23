@@ -12,7 +12,7 @@ sudo make lb
 ```
 ## Run the following command to start the server containers
 ```bash
-sudo make server
+python3 request.py
 ```
 # Following are some of the observations and analysis for the developed distributed database. <br />
 ## A-1 : Report the read and write speed for 10000 writes and 10000 reads in the default configuration given in task 2. <br />
