@@ -14,3 +14,5 @@ sudo make lb
 ```bash
 sudo make server
 ```
+# Following are some of the observations and analysis for the developed distributed database. <br />
+## A-1 : Report the read and write speed for 10000 writes and 10000 reads in the default configuration given in task 2. <br />
