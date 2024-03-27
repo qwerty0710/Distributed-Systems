@@ -11,7 +11,6 @@ import uvicorn
 from fastapi import FastAPI, Body, status, Request
 from ConsistentHashing import Consistent_Hashing
 from lb_db_helper import db_helper
-import redis
 
 
 @asynccontextmanager
@@ -242,9 +241,6 @@ async def spawn_new_servers(servers_id_name_map):
         else:
             print(f"Successfully started server with server id: {server_id} with name {servers_id_name_map[server_id]}")
 
-
-async def check_heartbeat():
-    pass
 
 
 async def make_request(server_name, payload, path, method):
@@ -598,13 +594,36 @@ async def remove_replicas(n: int = Body(...), hostnames: list[str] = Body(...)):
                 if len(hostnames) == n:
                     break
 
+
     # remove the servers from all places
     for hostname in hostnames:
-        server_id = app.server_id_name_map[hostname]
+        server_id = None
+        for id, name in app.server_id_name_map.items():
+            if name == hostname:
+                server_id = id
+                break
+
+        if server_id is None:
+            print(f"Server ID not found for hostname: {hostname}")
+            continue
+
         del app.server_id_name_map[server_id]
-        for shard in app.shard_consistent_hashing.keys():
+
+        shards = app.database_helper.get_shard_for_server(server_id)
+        shard_list = []
+        for tuplee in shards:
+            shard_list.append(tuplee[0])
+
+        for shard in shard_list:
             app.shard_consistent_hashing[shard].server_del(server_id)
+
+        # Delete the server from the database helper
         app.database_helper.del_server(str(server_id))
+
+        # delete the server container using docker
+        os.system(f"sudo docker container stop {hostname}")
+
+
 
     response = {
         "N": n,

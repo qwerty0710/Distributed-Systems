@@ -39,7 +39,7 @@ class Consistent_Hashing:
 
     def server_del(self, server_id):
         # reallocate if server is deleted
-        for i in self.servers[server_id]["slots"]:
+        for i in self.servers[str(server_id)]["slots"]:
             self.ring[int(i)] = -1
         del self.servers[server_id]
 
