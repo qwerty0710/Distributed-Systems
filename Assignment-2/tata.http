@@ -58,7 +58,7 @@ PUT http://0.0.0.0:5000/update
 Content-Type: application/json
 
 {
-  "stud_id": 400,
+  "Stud_id": 400,
   "data" : {"Stud_id": 400, "Stud_name": "John", "Stud_marks": 100}
 }
 
@@ -68,7 +68,7 @@ DELETE http://localhost:5000/del
 Content-Type: application/json
 
 {
-  "stud_id": 400
+  "Stud_id": 400
 }
 
 

@@ -31,7 +31,7 @@ POST  http://0.0.0.0:5000/read
 Content-Type: application/json
 
 {
-  "Stud_id": {"low": 2200, "high": 4099}
+  "Stud_id": {"low": 0, "high": 4099}
 }
 
 ###
@@ -43,4 +43,14 @@ Content-Type: application/json
   "new_shards":[{"Stud_id_low":12288, "Shard_id": "sh5", "Shard_size":4096}],
   "servers" : {"Server4":["sh3","sh5"],
     "Server[5]":["sh2","sh5"]}
+}
+
+###
+
+PUT http://0.0.0.0:5000/update
+Content-Type: application/json
+
+{
+  "stud_id": 2255,
+  "data": {"Stud_id":2255,"Stud_name":"GHI","Stud_marks":30}
 }

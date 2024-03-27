@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 import random
 import re
@@ -8,7 +7,7 @@ from contextlib import asynccontextmanager
 import threading
 import aiohttp
 import uvicorn
-from fastapi import FastAPI, Body, status, Request
+from fastapi import FastAPI, Body, status
 from ConsistentHashing import Consistent_Hashing
 from lb_db_helper import db_helper
 
@@ -284,6 +283,7 @@ async def make_request(server_name, payload, path, method):
                 async with session.delete(f"http://{server_name}:5000/{path}", json=payload,
                                           timeout=2) as response:
                     content = await response.read()
+                    print(content)
                     if response.status != 404:
                         return_obj = await response.json(content_type="application/json")
                         return return_obj
@@ -406,8 +406,9 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
         old_shards.add(shard)
     print(mapT_data)
     for shard, server_id in mapT_data:
-        if not app.server_id_name_map_lock.locked():
-            names.append(app.server_id_name_map[server_id])
+        await app.server_id_name_map_lock.acquire()
+        names.append(app.server_id_name_map[server_id])
+        app.server_id_name_map_lock.release()
     # adding the new data in database
     for shard in new_shards:
         shard["curr_idx"] = 0
@@ -458,8 +459,9 @@ async def add_replicas(N: int = Body(...), new_shards: list[dict] = Body(...),
                     server_id_list.append(server_id)
             app.server_id_name_map_lock.release()
             for new_server_id in server_id_list:
-                if not app.server_id_name_map_lock.locked():
-                    app.shard_consistent_hashing[shard].add_server(new_server_id,
+                await app.server_id_name_map_lock.acquire()
+                app.server_id_name_map_lock.release()
+                app.shard_consistent_hashing[shard].add_server(new_server_id,
                                                                    app.server_id_name_map[new_server_id])
     app.shard_consistent_hashing_lock.release()
 
@@ -606,22 +608,27 @@ async def remove_replicas(n: int = Body(...), hostnames: list[str] = Body(...)):
         if server_id is None:
             print(f"Server ID not found for hostname: {hostname}")
             continue
-
+        await app.server_id_name_map_lock.acquire()
         del app.server_id_name_map[server_id]
-
+        app.server_id_name_map_lock.release()
         shards = app.database_helper.get_shard_for_server(server_id)
         shard_list = []
         for tuplee in shards:
             shard_list.append(tuplee[0])
 
         for shard in shard_list:
+            await app.shard_locks[shard].acquire()
+            await app.shard_consistent_hashing_lock.acquire()
             app.shard_consistent_hashing[shard].server_del(server_id)
+            app.shard_consistent_hashing_lock.release()
+            app.shard_locks[shard].release()
 
         # Delete the server from the database helper
         app.database_helper.del_server(str(server_id))
 
         # delete the server container using docker
         os.system(f"sudo docker container stop {hostname}")
+
 
 
 
@@ -640,6 +647,8 @@ async def write_data(data: dict = Body(...)):
     shard_data_map = get_shards_for_data_write(data1)
     print(shard_data_map)
     for shard in shard_data_map.keys():
+        await app.shard_consistent_hashing_lock.acquire()
+        app.shard_consistent_hashing_lock.release()
         try_again = list(app.shard_consistent_hashing[shard].get_servers().keys())
         # while len(try_again):
         for server in try_again:
@@ -651,7 +660,9 @@ async def write_data(data: dict = Body(...)):
             print(payload, "to server: ", server)
             try:
                 # payload = {"shard": "sh1", "data": [{"Stud_id": 1, "Stud_name": "ABC", "Stud_marks": "95"}], "curr_idx": 0}
+                await app.shard_locks[shard].acquire()
                 response = await make_request(app.server_id_name_map[server], payload, "write", "POST")
+                app.shard_locks[shard].release()
                 if payload["curr_idx"] + len(payload["data"]) == response["curr_idx"]:
                     print("done deal!!!")
                     # try_again.remove(server)
@@ -671,9 +682,9 @@ async def write_data(data: dict = Body(...)):
 
 ###### Implement locking
 @app.put('/update')
-async def update_data(stud_id: int = Body(...), data: dict = Body(...)):
+async def update_data(Stud_id: int = Body(...), data: dict = Body(...)):
     # find which shard this student id belongs to using mapT table
-    shard_id = app.database_helper.get_shard_id(stud_id)
+    shard_id = app.database_helper.get_shard_id(Stud_id)
     shard_id = shard_id[0]
     # find all the servers which contains this shard
     servers_containing_shard = []
@@ -685,19 +696,21 @@ async def update_data(stud_id: int = Body(...), data: dict = Body(...)):
         request_payload = {
             "shard": shard_id,
             "data": data,
-            "Stud_id": stud_id
+            "Stud_id": Stud_id
         }
         await make_request(server_name, request_payload, "update", "PUT")
 
     response = {
-        "message": f"Data entry for Student ID: {stud_id}' updated",
+        "message": f"Data entry for Student ID: {Stud_id}' updated",
         "status": "success"
     }
     return response
 
 
 @app.delete('/del')
-async def delete_data(stud_id: int = Body(...)):
+async def delete_data(stud_id: dict = Body(...)):
+    print(stud_id)
+    stud_id = stud_id["Stud_id"]
     shard_id = app.database_helper.get_shard_id(stud_id)
     shard_id = shard_id[0]
     servers_containing_shard = []
@@ -707,14 +720,15 @@ async def delete_data(stud_id: int = Body(...)):
     for server_name in servers_containing_shard:
         request_payload = {
             "shard": shard_id,
-            "Stud_id": stud_id
+            "Stud_id": str(stud_id)
         }
-        await make_request(server_name, request_payload, "delete", "DELETE")
+        await make_request(server_name, request_payload, "del", "DELETE")
 
     response = {
         "message": f"Data entry for f'{stud_id}' deleted",
         "status": "success"
     }
+    return response
 
 
 # @app.get('/<path:path>')
