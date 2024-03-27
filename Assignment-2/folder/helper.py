@@ -65,7 +65,7 @@ class StudentDatabase:
         datas = payload.get('data')
         cursor = conn.cursor()
         for data in datas:
-            cursor.execute("INSERT INTO {} (Stud_id, Stud_name, Stud_marks) VALUES (?,?,?)".format(table),
+            cursor.execute("INSERT OR IGNORE INTO {} (Stud_id, Stud_name, Stud_marks) VALUES (?,?,?)".format(table),
                            (int(data['Stud_id']), data['Stud_name'], str(data['Stud_marks'])))
             curr_idx += 1
         conn.commit()

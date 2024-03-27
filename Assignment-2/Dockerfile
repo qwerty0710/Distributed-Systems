@@ -5,12 +5,6 @@ RUN apk --update --no-cache add supervisor
 RUN mkdir /etc/supervisord.d/
 
 
-# Copy application files
-COPY loadbalancer.py /
-COPY requirements.txt /
-COPY ConsistentHashing.py /
-COPY lb_db_helper.py /
-
 
 # Install essential tools
 RUN apk add --no-cache su-exec curl
@@ -27,8 +21,15 @@ RUN apk add --update --no-cache python3 && ln -sf python3 /usr/bin/python
 # Install `pip` for Python package management
 RUN apk add --update --no-cache py3-pip
 
+COPY requirements.txt /
+
 # Install application dependencies
 RUN python3 -m pip install --break-system-packages --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY loadbalancer.py /
+COPY ConsistentHashing.py /
+COPY lb_db_helper.py /
 
 # Expose port for communication
 EXPOSE 5000
