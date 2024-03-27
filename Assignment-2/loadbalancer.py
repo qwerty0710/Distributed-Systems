@@ -674,6 +674,7 @@ async def write_data(data: dict = Body(...)):
 async def update_data(stud_id: int = Body(...), data: dict = Body(...)):
     # find which shard this student id belongs to using mapT table
     shard_id = app.database_helper.get_shard_id(stud_id)
+    shard_id = shard_id[0]
     # find all the servers which contains this shard
     servers_containing_shard = []
     for server_name in app.shard_consistent_hashing[shard_id].get_servers().values():
@@ -689,7 +690,7 @@ async def update_data(stud_id: int = Body(...), data: dict = Body(...)):
         await make_request(server_name, request_payload, "update", "PUT")
 
     response = {
-        "message": f"Data entry for f'{stud_id}' updated",
+        "message": f"Data entry for Student ID: {stud_id}' updated",
         "status": "success"
     }
     return response
