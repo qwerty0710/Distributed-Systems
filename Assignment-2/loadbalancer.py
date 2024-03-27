@@ -696,9 +696,10 @@ async def update_data(stud_id: int = Body(...), data: dict = Body(...)):
     return response
 
 
-@app.put('/del')
+@app.delete('/del')
 async def delete_data(stud_id: int = Body(...)):
     shard_id = app.database_helper.get_shard_id(stud_id)
+    shard_id = shard_id[0]
     servers_containing_shard = []
     for server_name in app.shard_consistent_hashing[shard_id].get_servers().values():
         servers_containing_shard.append(server_name["name"])
