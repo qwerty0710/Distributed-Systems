@@ -638,27 +638,20 @@ async def delete_data(stud_id: dict = Body(...)):
     return response
 
 
-# @app.get('/<path:path>')
-# async def get(path, request: Request):
-#     global server_replicas
-#     req_slot = generate_req_id()
-#     server_id = server_replicas.ring[server_replicas.get_req_slot(req_slot)]
-#     server_name = server_replicas.servers[str(server_id)]["name"]
-#
-#     if path == "home":
-#         res = None
-#         await make_request(server_name, {}, "home")
-#         await asyncio.sleep(1)
-#         return RedirectResponse(request.url)
-#         # print("hallelujah!!")
-#
-#         return res, 200
-#     else:
-#         errorr = {
-#             "message": f"<Error> '/{path}’ endpoint does not exist in server replicas",
-#             "status": "failure"
-#         }
-#         return errorr, 400
+@app.get('/<path:path>')
+async def get(path, request: Request):
+    # this function handles the direct access to server using http://localhost:5000/<path>
+    # check if the <path> is equal to any server id in the server_id_name_map
+    print(path)
+    path = path.split("/")
+    payload = {}
+    if path[0] in app.server_id_name_map.keys():
+        server_name = app.server_id_name_map[path[0]]
+        response = await make_request(server_name, payload, "get_all_data", "GET")
+        return response
+    else:
+        return {"message": f"<Error> '{path[0]}' is not a valid <path>",
+                "status": "failure"}, 400
 
 
 def stop_heartbeat():
