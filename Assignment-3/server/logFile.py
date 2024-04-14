@@ -1,8 +1,8 @@
 from enum import Enum
 
 
-class Log:
-    def __int__(self, msg_id, shard_id, op_type, data: object):
+class Log():
+    def __init__(self, msg_id, shard_id, op_type, data):
         self.msg_id = msg_id
         self.shard_id = shard_id
         self.op_type = op_type

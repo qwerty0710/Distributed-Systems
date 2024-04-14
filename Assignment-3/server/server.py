@@ -2,7 +2,6 @@ import json
 from argparse import Namespace
 
 import uvicorn
-# from flask_script import Manager, Server
 import aiohttp
 import os
 import helper as db
@@ -92,6 +91,7 @@ async def config(request: Request):
         msg += str(student_db.create_table(conn, payload))
         msg += 'configured'
         conn.close()
+        await crash_recovery()
         return {
             "message": msg,
             "status": "success"
@@ -101,13 +101,13 @@ async def config(request: Request):
         raise Exception(e)
 
 
-@app.get('/heartbeat',status_code=200)
+@app.get('/heartbeat', status_code=200)
 async def heartbeat():
     return {}
 
 
 @app.get('/copy')
-async def copy_data(request:Request):
+async def copy_data(request: Request):
     payload = await request.json()
     shards = payload.get('shards')
     student_db = db.StudentDatabase()
@@ -132,7 +132,7 @@ async def exception_handler(error):
 
 
 @app.post('/read')
-async def read_data(request:Request):
+async def read_data(request: Request):
     payload = await request.json()
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
@@ -145,7 +145,7 @@ async def read_data(request:Request):
 
 
 @app.get('/get_latest_log_index')
-async def get_latest_log_index(request:Request):
+async def get_latest_log_index(request: Request):
     max_index = -1
     logs = []
     with open('wal.log', 'r') as file:
@@ -162,17 +162,17 @@ def commit_logs(logs):
     conn = stud_db.create_connection()
     for log in logs:
         if log.op_type == op_type.WRITE:
-            stud_db.write(conn,log)
+            stud_db.write(conn, log)
         elif log.op_type == op_type.UPDATE:
-            stud_db.write(conn,json.loads(log))
+            stud_db.write(conn, json.loads(log))
         elif log.op_type == op_type.DELETE:
-            stud_db.delete(conn,json.loads(log))
+            stud_db.delete(conn, json.loads(log))
 
 
 async def crash_recovery():
     max_msg_id = -1
     logs = []
-    with open('wal.log', 'r') as file:
+    with open(f'{app.server_name}.log', 'r+') as file:
         lines = file.readlines()
         for line in lines:
             logs.append(json.loads(line, object_hook=lambda d: Namespace(**d)))
@@ -186,8 +186,9 @@ async def crash_recovery():
         logs_to_do.append(ret_data)
     commit_logs(logs_to_do)
 
+
 @app.post('/get_missed_logs')
-async def get_missed_logs(request:Request):
+async def get_missed_logs(request: Request):
     payload = await request.json()
     most_recent_msgid = payload.get('most_recent_msgid')
     shard = payload.get('shard')
@@ -204,7 +205,7 @@ async def get_missed_logs(request:Request):
 
 
 def append_to_logs(msg_id, shard_id, op_type, data):
-    new_Log = Log(msg_id,shard_id,op_type,data)
+    new_Log = Log(msg_id, shard_id, op_type, data)
     with open('wal.log', 'w') as log_file:
         log_file.writelines([json.dumps(new_Log.__dict__)])
     log_file.close()
@@ -214,11 +215,12 @@ def append_to_logs(msg_id, shard_id, op_type, data):
 @app.post('/write')
 async def write_data(request: Request):
     payloadd = await request.json()
-    if payloadd['primary'] != app.sid :
+    if (payloadd['primary_commit'] == 1 and app.primary_server_for_shards_stored[payloadd['shard']] == app.sid) or (
+            payloadd['primary_commit'] == 0 and app.primary_server_for_shards_stored[payloadd['shard']] != app.sid):
         try:
             shard_id = payloadd.get('shard')
             data = payloadd.get('data')
-            append_to_logs(payloadd.get('msg_id'),shard_id,op_type.WRITE,data)
+            append_to_logs(payloadd.get('msg_id'), shard_id, op_type.WRITE, data)
             student_db = db.StudentDatabase()
             conn = student_db.create_connection()
             if payloadd.get("try_again") == 1:
@@ -239,13 +241,12 @@ async def write_data(request: Request):
             }
         except Exception as e:
             raise Exception(e)
-    else:
-        pass
+
 
 @app.put('/update')
-async def update_data(request:Request):
+async def update_data(request: Request):
     payload = await request.json()
-    append_to_logs(payload.get('msg_id'),payload.get('shard_id'),'update')
+    append_to_logs(payload.get('msg_id'), payload.get('shard_id'), 'update')
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
     message = student_db.update(conn, payload)
@@ -267,7 +268,7 @@ def get_all_data():
 
 
 @app.delete('/del')
-async def delete_data(request:Request):
+async def delete_data(request: Request):
     payload = await request.json()
     student_db = db.StudentDatabase()
     conn = student_db.create_connection()
@@ -280,13 +281,13 @@ async def delete_data(request:Request):
 
 
 @app.post("/leaderElection")
-async def leaderElection(request:Request):
+async def leaderElection(request: Request):
     payload = await request.json()
     app.primary_server_for_shards_stored[payload.get('shard_id')] = payload.get('server_id')
 
 
 @app.post("/updateServerCount")
-async def updateServerCount(request:Request):
+async def updateServerCount(request: Request):
     payload = await request.json()
     app.no_of_servers_for_shard[payload.get('shard')] = payload.get('servers')
 

@@ -17,6 +17,7 @@ app.shard_primary_server_map_lock = asyncio.Lock()
 app.shard_server_mapping = {}
 app.shard_server_mapping_lock = asyncio.Lock()
 app.n = 512
+app.db_schema=None
 
 
 async def del_server(server_id):
@@ -115,7 +116,7 @@ class Heartbeat(threading.Thread):
     async def make_request(self, server_id):
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"http://{str(app.server_id_name_map[str(server_id)])}:5000/heartbeat",
+                async with session.get(f"http://{str(app.server_id_name_map[str(server_id)])}:5000/heartbeat",
                                         timeout=2) as response:
                     content = await response.read()
                     if response.status != 404:
@@ -167,11 +168,11 @@ class Heartbeat(threading.Thread):
 
     async def reconfig_server(self, server_id):
         payload = {}
-        shards = app.database_helper.get_shard_for_server(server_id)
         payload["schema"] = app.db_schema
         shard_list = []
-        for tuplee in shards:
-            shard_list.append(tuplee[0])
+        for shard in app.shard_server_mapping.keys():
+            if server_id in app.shard_server_mapping[shard]:
+                shard_list.append(shard)
         payload["shards"] = list(shard_list)
         print(payload)
         async with aiohttp.ClientSession() as session:
@@ -207,10 +208,12 @@ class Heartbeat(threading.Thread):
             for server in list(app.server_id_name_map.keys()):
                 if server not in self.fails.keys():
                     self.fails[server] = 0
-                asyncio.run(self.make_request(server))
+
+                await self.make_request(server)
             for server in list(self.fails.keys()):
                 if self.fails[server] > 5:
-                    asyncio.run(app.server_id_name_map_lock.acquire())
+
+                    await app.server_id_name_map_lock.acquire()
                     del app.server_id_name_map[server]
                     app.server_id_name_map_lock.release()
                     # send req to the loadbalancer that a server is dead
@@ -258,16 +261,23 @@ async def init(N: int = Body(...), schema: dict = Body(...), servers: dict[str, 
     app.db_schema = schema
     app.n = N
     app.server_id_name_map = idnamemap
+    print(servers)
     for server in servers.keys():
-        for shard in server:
+        for shard in servers[server]:
             if shard not in app.shard_server_mapping.keys():
                 app.shard_server_mapping[shard] = []
             id_ = list(idnamemap.keys())[list(idnamemap.values()).index(server)]
             app.shard_server_mapping[shard].append(id_)
-
     thread_obj = Heartbeat(list(app.server_id_name_map.keys()))
     thread_obj.start()
+    print(app.shard_server_mapping)
     # pick primary server and send it back to the loadbalancer
+    for shard in app.shard_server_mapping.keys():
+        random_server = app.shard_server_mapping[shard][
+            random.randint(0, len(app.shard_server_mapping[shard]) - 1)]
+        app.shard_primary_server_map[shard] = random_server
+    print(app.shard_primary_server_map)
+    await make_request('lb',{'primary_server_map':app.shard_primary_server_map},"elected_primary","POST")
 
 
 @app.post("/add")
@@ -285,12 +295,7 @@ async def add(N: int = Body(...), new_shards: list[dict] = Body(...), servers: d
     # elect leader for new shards
     for shard in new_shards:
         random_server = app.shard_server_mapping[shard["shard_id"]][
-            random.randint(0, len(app.shard_server_mapping[shard["shard_id"]] - 1))]
-        # loop = asyncio.get_event_loop()
-        # for server in app.shard_server_mapping[shard]:
-        #     loop.run_until_complete(make_request(app.server_id_name_map[server],
-        #                                          {"leader": app.server_id_name_map[random_server], "shard": shard},
-        #                                          "newLeader", "POST"))
+            random.randint(0, len(app.shard_server_mapping[shard["shard_id"]]) - 1)]
         app.shard_primary_server_map[shard] = random_server
     await make_request('lb',{'primary_server_map':app.shard_primary_server_map},'elected_primary',"POST")
 

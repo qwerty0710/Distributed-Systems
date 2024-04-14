@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 import threading
 import aiohttp
 import uvicorn
-from fastapi import FastAPI, Body, status ,Request
+from fastapi import FastAPI, Body, status, Request
 from ConsistentHashing import Consistent_Hashing
 from lb_db_helper import db_helper
 
@@ -112,8 +112,9 @@ async def spawn_new_servers(servers_id_name_map):
                            f"--network net1 "
                            f"--network-alias {servers_id_name_map[server_id]} "
                            f"-e SERVER_ID={int(server_id)} "
-                           f"-e SERVER_NAME={str(servers_id_name_map[server_id])}"
+                           f"-e SERVER_NAME={str(servers_id_name_map[server_id])} "
                            f"-p {5001 + int(server_id)}:5000 "
+                           f"-v ./logs:/logs "
                            f"-d server").read()
             time.sleep(1)
             if len(cmd) == 0:
@@ -127,9 +128,10 @@ async def spawn_new_servers(servers_id_name_map):
                 # return_code = popen.wait()
                 # if return_code:
                 #     raise subprocess.CalledProcessError(return_code, cmd)
-                print(f"Successfully started server with server id: {server_id} with name {servers_id_name_map[server_id]}")
+                print(
+                    f"Successfully started server with server id: {server_id} with name {servers_id_name_map[server_id]}")
         except Exception as e:
-            print(e," in spawning server")
+            print(e, " in spawning server")
 
 
 async def make_request(server_name, payload, path, method):
@@ -193,12 +195,23 @@ async def make_request(server_name, payload, path, method):
 async def elected_primary(request: Request):
     payload = await request.json()
     primary_server_map = payload['primary_server_map']
-    for shard, server in primary_server_map:
-        app.primary_server_for_shard[shard] = server
+    # print(primary_server_map)
+    for shard in primary_server_map.keys():
+        app.primary_server_for_shard[shard] = primary_server_map[shard]
+    print(app.primary_server_for_shard)
+
 
 @app.post("/server_dead")
-async def remove_server_metadata():
-    pass
+async def remove_server_metadata(request: Request):
+    server_id = request['server_id']
+    for shard in app.shard_consistent_hashing.keys():
+        if server_id in app.shard_consistent_hashing[shard].servers:
+            app.shard_consistent_hashing[shard].server_del(server_id)
+    del app.server_id_name_map[server_id]
+    for shard in app.primary_server_for_shard.keys():
+        if app.primary_server_for_shard[shard] == server_id:
+            del app.primary_server_for_shard[shard]
+    app.database_helper.del_server(server_id)
 
 
 @app.post('/init', status_code=status.HTTP_200_OK)
@@ -249,7 +262,7 @@ async def init(N: int = Body(...), schema: dict = Body(...), shards: list[dict] 
     # thread.start()
     # send request to the Shard Manager for init and start heartbeat thread
     await make_request('shm', {"N": N, "schema": schema, "servers": servers, "idnamemap": app.server_id_name_map},
-                       "/init",
+                       "init",
                        "POST")
 
     response = {
@@ -591,6 +604,8 @@ async def write_data(data: dict = Body(...)):
 @app.put('/update')
 async def update_data(Stud_id: int = Body(...), data: dict = Body(...)):
     # find which shard this student id belongs to using mapT table
+    app.msg_count += 1
+    msg_id = app.msg_count
     shard_id = app.database_helper.get_shard_id(Stud_id)
     shard_id = shard_id[0]
     # find all the servers which contains this shard
@@ -603,7 +618,8 @@ async def update_data(Stud_id: int = Body(...), data: dict = Body(...)):
         request_payload = {
             "shard": shard_id,
             "data": data,
-            "Stud_id": Stud_id
+            "Stud_id": Stud_id,
+            "msg_id": msg_id
         }
         await make_request(server_name, request_payload, "update", "PUT")
 
@@ -617,6 +633,8 @@ async def update_data(Stud_id: int = Body(...), data: dict = Body(...)):
 @app.delete('/del')
 async def delete_data(stud_id: dict = Body(...)):
     print(stud_id)
+    app.msg_count += 1
+    msg_id = app.msg_count
     stud_id = stud_id["Stud_id"]
     shard_id = app.database_helper.get_shard_id(stud_id)
     shard_id = shard_id[0]
@@ -627,7 +645,8 @@ async def delete_data(stud_id: dict = Body(...)):
     for server_name in servers_containing_shard:
         request_payload = {
             "shard": shard_id,
-            "Stud_id": str(stud_id)
+            "Stud_id": str(stud_id),
+            "msg_id": msg_id
         }
         await make_request(server_name, request_payload, "del", "DELETE")
 
