@@ -1,0 +1,4 @@
+aiohttp==3.9.3
+Flask==1.1.4
+flask-script==2.0.5
+werkzeug==1.0.1

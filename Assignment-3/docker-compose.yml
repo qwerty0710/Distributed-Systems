@@ -1,0 +1,46 @@
+version: "3.9"
+
+networks:
+  net1:
+    name: net1
+
+services:
+  lb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lb
+    container_name: lb
+    ports:
+      - "5000:5000" # Exposing port to host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # This share host’s the docker daemon with the container. Now, the container can spawn other containers just like host
+    privileged: true # This should be true to share the docker daemon
+    depends_on:
+      - shm
+    environment:
+      m: 512
+    networks:
+      net1: {}
+  shm:
+    build:
+      context: ./shm
+      dockerfile: Dockerfile
+    image: shm
+    container_name: shm
+    ports:
+      - "4999:4999" # Exposing port to host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # This share host’s the docker daemon with the container. Now, the container can spawn other containers just like host
+    privileged: true # This should be true to share the docker daemon
+    environment:
+      m: 512
+    networks:
+      net1: { }
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: server

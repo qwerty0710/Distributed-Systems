@@ -1,0 +1,42 @@
+## Need logging so that we can replicate the changes happened int the database when a particular replica was down into it
+    -> for that we need to maintain log-file storage
+        using local storage in a python file with locks not using any database
+    -> need timestamping based on changes
+        we use operation number and count increases when a modify operation is done in the database read are not counted in this
+    -> need to store the change type and data using objects
+## Need to elect leader for primary storage of the shard
+    -> When we update a shard we need to make sure that we write to the log first
+    -> so that when the server is back up all the updates that are missed will be written one by one in sequence into it
+## upon crash
+    -> If a server crashes, when it is back up we copy all the shards from the primary servers of that shard
+    -> If the server was primary we make the most updated secondary the primary and deal with it as any other server
+Flow:
+    We take request from the client
+        Case, If it is read then we simply read from the primary server and the return the data
+        Case, If it is write,update or delete, then for each shard we send the request to all the servers containing the shard
+            |-> primary server commits to its log and waits for secondary server to commit the data(dont through separate endpoint resending the data again
+            |-> secondary servers commit the data and then update their logs and send the confirmation to the primary
+
+
+Shard Manager is responsible for detecting if any server is down then making one server as Primary server and updating that in metadata.
+
+server:
+    /server_count_change POST
+    {
+        shard: shard_id
+        change: change in server count for the shard
+    }
+    /get_latest_log_index GET
+    {
+        none
+    }
+    /get_missed_logs POST
+    {
+        shard: shard_id
+        most_recent_msgid: most recent msg id
+    }
+    /leaderElection POST
+    {
+        shard:shard_id
+        server_id:server_id
+    }

@@ -1,0 +1,4 @@
+aiohttp==3.9.3
+asgiref==3.8.0
+fastapi==0.110.1
+uvicorn==0.29.0
