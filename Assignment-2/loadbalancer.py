@@ -737,14 +737,13 @@ async def get(path, request: Request):
     # check if the <path> is equal to any server id in the server_id_name_map
     print(path)
     path = path.split("/")
+    payload = {}
     if path[0] in app.server_id_name_map.keys():
         server_name = app.server_id_name_map[path[0]]
-        path = "/".join(path[1:])
-        payload = await request.json()
-        response = await make_request(server_name, payload, "", "GET")
+        response = await make_request(server_name, payload, "get_all_data", "GET")
         return response
     else:
-        return {"message": f"<Error> '{path[0]}' is not a valid server id",
+        return {"message": f"<Error> '{path[0]}' is not a valid <path>",
                 "status": "failure"}, 400
 
 def stop_heartbeat():

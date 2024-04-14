@@ -261,12 +261,8 @@ def get_all_data():
     conn = student_db.create_connection()
     data = student_db.get_all_data_shards_wise(conn)
     conn.close()
-    response = {}
-    for i in range(len(data)):
-        response[data[i][0]] = data[i][1]
-    response["status"] = "success"
-    return response
-
+    data["status"] = "success"
+    return data
 
 
 
