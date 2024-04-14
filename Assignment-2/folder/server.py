@@ -1,5 +1,3 @@
-import json
-
 from flask import Flask, request, jsonify
 import os
 import helper as db
@@ -28,7 +26,6 @@ def config():
             "message": msg,
             "status": "success"
         }), 200
-        # return jsonify(str(payloadd.get('shards'))), 200
     except Exception as e:
         raise Exception(e)
 

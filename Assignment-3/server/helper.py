@@ -150,3 +150,13 @@ class StudentDatabase:
         message = f'data entry for stud_id {stud_id} deleted '
         return message
 
+    def get_all_data_shards_wise(self, conn):
+        cursor = conn.cursor()
+        data = {}
+        # extract data from database for all shards and return
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = cursor.fetchall()
+        for table in tables:
+            cursor.execute(f"SELECT * FROM {table[0]}")
+            data[table[0]] = cursor.fetchall()
+        return data

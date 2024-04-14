@@ -2,7 +2,7 @@ import json
 from argparse import Namespace
 
 import uvicorn
-from flask_script import Manager, Server
+# from flask_script import Manager, Server
 import aiohttp
 import os
 import helper as db
@@ -240,7 +240,7 @@ async def write_data(request: Request):
         except Exception as e:
             raise Exception(e)
     else:
-
+        pass
 
 @app.put('/update')
 async def update_data(request:Request):
@@ -254,6 +254,20 @@ async def update_data(request:Request):
         "message": message,
         "status": "success"
     }
+
+@app.get('/get_all_data', methods=['GET'])
+def get_all_data():
+    student_db = db.StudentDatabase()
+    conn = student_db.create_connection()
+    data = student_db.get_all_data_shards_wise(conn)
+    conn.close()
+    response = {}
+    for i in range(len(data)):
+        response[data[i][0]] = data[i][1]
+    response["status"] = "success"
+    return response
+
+
 
 
 @app.delete('/del')
