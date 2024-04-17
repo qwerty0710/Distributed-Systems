@@ -25,9 +25,6 @@ python3 request.py
 The load balancer is implemented using FastAPI.
 Heartbeat runs in the background and checks the health of the servers periodically. If a server is down, the load balancer will keep trying to spawn the server again for specific number of time and copy the shard entries from other replicas. If it fails to spawn the server, it will remove the server from the database.
 
-## Design of Server
-
-
 
 # Following are some of the observations and analysis for the developed distributed database. <br />
 ## A-1 : Report the read and write speed for 10000 writes and 10000 reads in the default configuration given in task 2. <br />
