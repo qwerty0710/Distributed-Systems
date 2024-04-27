@@ -206,7 +206,7 @@ async def get_missed_logs(request: Request):
 
 def append_to_logs(msg_id, shard_id, op_type, data):
     new_Log = Log(msg_id, shard_id, op_type, data)
-    with open('wal.log', 'w') as log_file:
+    with open('/logs/wal.log', 'w') as log_file:
         log_file.writelines([json.dumps(new_Log.__dict__)])
     log_file.close()
 
